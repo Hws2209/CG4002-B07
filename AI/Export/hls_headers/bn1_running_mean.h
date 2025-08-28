@@ -1,0 +1,9 @@
+#ifndef BN1_RUNNING_MEAN_H
+#define BN1_RUNNING_MEAN_H
+
+short bn1_running_mean[] = {
+-25668, -11232, 17880, -11472, 20008, 1224, -18150, -11348, -5596, -9686, 13488, -10016, 10212, 3704, -23100, 8636, 
+
+};
+
+#endif // BN1_RUNNING_MEAN_H
