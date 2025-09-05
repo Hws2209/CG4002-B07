@@ -8,7 +8,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 from scipy.stats import skew
 
-NEURAL_NETWORK = "Simplified MLP"  # "CNN" | "RNN" | "MLP" | "Simplified MLP"
+MODEL_TYPE = "CNN"  # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
 DATA_LABELS = ["class1", "class2", "class3", "class4"]
 NUM_CLASSES = len(DATA_LABELS)
@@ -87,12 +87,20 @@ def import_data(data_file, label_file, lines_per_matrix):
     assert all(m.shape[0] == lines_per_matrix for m in matrices), "Matrix line count mismatch"
     assert len(matrices) == len(labels_numeric), "Number of matrices and labels mismatch"
 
-    if NEURAL_NETWORK == "Simplified MLP":
+    if MODEL_TYPE == "Simplified MLP":
         # Summarise data
         X_np = np.array([extract_features(m) for m in matrices], dtype=np.float32)
-    else:
+    elif MODEL_TYPE == "MLP":
+        # Flatten each matrix
+        X_np = np.array([m.flatten() for m in matrices], dtype=np.float32)
+    elif MODEL_TYPE == "RNN":
+        # Stack matrices into 3D array: (num_samples, sequence_length, num_channels)
+        X_np = np.array([m for m in matrices], dtype=np.float32)
+    elif MODEL_TYPE == "CNN":
         # Stack matrices into 3D array: (num_samples, num_channels, sequence_length)
         X_np = np.array([m.T for m in matrices], dtype=np.float32)
+    else:
+        raise ValueError("Invalid MODEL_TYPE")
 
     y_np = np.array(labels_numeric, dtype=np.int64)
 
@@ -102,20 +110,47 @@ def import_data(data_file, label_file, lines_per_matrix):
     return X_tensor, y_tensor
 
 
-def export_model(model, frac_bits=15):
+def fold_bn_into_conv(conv_layer, bn_layer):
+    W = conv_layer.weight.detach().cpu().numpy()  # shape: [out_channels, in_channels, kernel]
+    b = conv_layer.bias.detach().cpu().numpy() if conv_layer.bias is not None else np.zeros(W.shape[0], dtype=np.float32)
+    
+    gamma = bn_layer.weight.detach().cpu().numpy()
+    beta = bn_layer.bias.detach().cpu().numpy()
+    mean = bn_layer.running_mean.detach().cpu().numpy()
+    var = bn_layer.running_var.detach().cpu().numpy()
+    eps = bn_layer.eps
+
+    # Fold BN into Conv
+    std = np.sqrt(var + eps)             # shape: [out_channels]
+    W_folded = W * (gamma / std)[:, None, None]  # broadcast over in_channels and kernel
+    b_folded = beta + (b - mean) * (gamma / std)
+
+    return W_folded, b_folded
+
+
+def export_model(model):
     os.makedirs(f"{EXPORT_FOLDER_NAME}/npy", exist_ok=True)
 
-    def float_to_fixed(arr, frac_bits=15):
-        # Scale float32 to int16 for fixed-point
-        scaled = np.round(arr * (2**frac_bits)).astype(np.int16)
-        return scaled
+    if MODEL_TYPE == "CNN":
+        # Fold BN into conv layers
+        W1, b1 = fold_bn_into_conv(model.conv1, model.bn1)
+        W2, b2 = fold_bn_into_conv(model.conv2, model.bn2)
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/conv1_weight.npy", W1)
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/conv1_bias.npy", b1)
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/conv2_weight.npy", W2)
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/conv2_bias.npy", b2)
 
-    for name, param in model.state_dict().items():
-        arr = param.cpu().numpy()
-        fixed_arr = float_to_fixed(arr, frac_bits)
-        file_path = os.path.join(f"{EXPORT_FOLDER_NAME}/npy", f"{name}.npy")
-        np.save(file_path, fixed_arr)
-        print(f"Exported {name} -> {file_path}")
+        # Save FC layers
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/fc1_weight.npy", model.fc1.weight.detach().cpu().numpy())
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/fc1_bias.npy", model.fc1.bias.detach().cpu().numpy())
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/fc2_weight.npy", model.fc2.weight.detach().cpu().numpy())
+        np.save(f"{EXPORT_FOLDER_NAME}/npy/fc2_bias.npy", model.fc2.bias.detach().cpu().numpy())
+
+    else:
+        for name, param in model.state_dict().items():
+            arr = param.cpu().numpy()
+            file_path = os.path.join(f"{EXPORT_FOLDER_NAME}/npy", f"{name}.npy")
+            np.save(file_path, arr)
 
 
 def generate_c_headers():
@@ -125,11 +160,11 @@ def generate_c_headers():
         with open(filename, "w") as f:
             f.write(f"#ifndef {var_name.upper()}_H\n")
             f.write(f"#define {var_name.upper()}_H\n\n")
-            f.write(f"short {var_name}[] = {{\n")
+            f.write(f"float {var_name}[] = {{\n")
             flat = array.flatten()
             for i, val in enumerate(flat):
-                f.write(f"{val}, ")
-                if (i+1) % 16 == 0:
+                f.write(f"{val:.6f}f, ")
+                if (i+1) % 8 == 0:
                     f.write("\n")
             f.write("\n};\n\n")
             f.write(f"#endif // {var_name.upper()}_H\n")
@@ -148,15 +183,15 @@ class ActionCNN(nn.Module):
     def __init__(self, num_channels, num_classes, sequence_length):
         super(ActionCNN, self).__init__()
 
-        conv1_out = 16
-        conv2_out = 32
+        conv1_out = 6
+        conv2_out = 3
         kernel_size_conv = 3
         pool_size = 2
         fc1_neurons = 64
         
-        self.conv1 = nn.Conv1d(num_channels, conv1_out, kernel_size=kernel_size_conv, padding=kernel_size_conv//2)
+        self.conv1 = nn.Conv1d(num_channels, conv1_out, kernel_size=kernel_size_conv, padding='same')
         self.bn1 = nn.BatchNorm1d(conv1_out)
-        self.conv2 = nn.Conv1d(conv1_out, conv2_out, kernel_size=kernel_size_conv, padding=kernel_size_conv//2)
+        self.conv2 = nn.Conv1d(conv1_out, conv2_out, kernel_size=kernel_size_conv, padding='same')
         self.bn2 = nn.BatchNorm1d(conv2_out)
         self.pool = nn.MaxPool1d(kernel_size=pool_size)
         self.fc1 = nn.Linear(conv2_out * (sequence_length // pool_size), fc1_neurons)
@@ -167,7 +202,7 @@ class ActionCNN(nn.Module):
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
         x = self.pool(self.relu(self.bn2(self.conv2(x))))
-        x = x.view(x.size(0), -1) # flatten
+        x = torch.flatten(x, 1) # flatten
         x = self.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
@@ -186,9 +221,7 @@ class ActionRNN(nn.Module):
         self.dropout = nn.Dropout(DROPOUT)
         self.fc = nn.Linear(self.hidden_size, num_classes)
     
-    def forward(self, x):
-        x = x.permute(0, 2, 1)
-        
+    def forward(self, x):        
         # Initialize hidden and cell states
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
@@ -202,10 +235,9 @@ class ActionRNN(nn.Module):
 
 # MLP Model
 class ActionMLP(nn.Module):
-    def __init__(self, num_channels, num_classes, sequence_length):
+    def __init__(self, input_size, num_classes):
         super(ActionMLP, self).__init__()
 
-        input_size = num_channels * sequence_length
         hidden1 = 256
         hidden2 = 128
 
@@ -216,7 +248,7 @@ class ActionMLP(nn.Module):
         self.dropout = nn.Dropout(DROPOUT)
 
     def forward(self, x):
-        x = x.view(x.size(0), -1) # flatten
+        x = torch.flatten(x, 1) # flatten
         x = self.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.relu(self.fc2(x))
@@ -257,16 +289,16 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    if NEURAL_NETWORK == "CNN":
+    if MODEL_TYPE == "CNN":
         model = ActionCNN(num_channels=X_tensor.shape[1], num_classes=NUM_CLASSES, sequence_length=X_tensor.shape[2])
-    elif NEURAL_NETWORK == "RNN":
-        model = ActionRNN(num_channels=X_tensor.shape[1], num_classes=NUM_CLASSES, sequence_length=X_tensor.shape[2])
-    elif NEURAL_NETWORK == "MLP":
-        model = ActionMLP(num_channels=X_tensor.shape[1], num_classes=NUM_CLASSES, sequence_length=X_tensor.shape[2])
-    elif NEURAL_NETWORK == "Simplified MLP":
+    elif MODEL_TYPE == "RNN":
+        model = ActionRNN(num_channels=X_tensor.shape[2], num_classes=NUM_CLASSES, sequence_length=X_tensor.shape[1])
+    elif MODEL_TYPE == "MLP":
+        model = ActionMLP(input_size=X_tensor.shape[1], num_classes=NUM_CLASSES)
+    elif MODEL_TYPE == "Simplified MLP":
         model = SimplifiedMLP(input_size=X_tensor.shape[1], num_classes=NUM_CLASSES)
     else:
-        raise ValueError("Invalid NEURAL_NETWORK type")
+        raise ValueError("Invalid MODEL_TYPE")
 
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -318,6 +350,17 @@ def main():
     if should_export_model.upper() == "Y":
         export_model(model)
         generate_c_headers()
+        torch.save(model, f"{EXPORT_FOLDER_NAME}/model.pt")
+
+    # Export golden logits
+    should_export_test_vectors = input("Export golden logits? Y/N: ")
+    if should_export_test_vectors.upper() == "Y":
+        model.eval()
+        with torch.no_grad():
+            logits = model(X_tensor).numpy()
+
+        np.savetxt(f"{EXPORT_FOLDER_NAME}/golden_logits.txt", logits, fmt="%.6f")
+        print("Golden logits exported")
 
 
 if __name__ == "__main__":
