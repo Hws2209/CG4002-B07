@@ -1,4 +1,4 @@
-// cnn_hls_float.cpp
+#include <hls_stream.h>
 #include <hls_math.h>
 #include "headers/conv1_weight.h"
 #include "headers/conv1_bias.h"
@@ -18,7 +18,7 @@
 #define FC1_NEURONS 64
 #define NUM_CLASSES 4
 
-typedef int16_t input_t;    // integer input type
+typedef int32_t input_t;    // integer input type
 typedef float float_t;    // internal float computation
 
 // ---------------- ReLU ----------------
@@ -126,14 +126,27 @@ void flatten(
 
 // ---------------- CNN Forward ----------------
 void cnn_forward(
-    const input_t input[NUM_CHANNELS][SEQ_LEN],
-    float_t output[NUM_CLASSES]
-){
+    hls::stream<input_t> &input_stream,
+    hls::stream<float_t> &output_stream
+) {
+    #pragma HLS INTERFACE axis port=input_stream
+    #pragma HLS INTERFACE axis port=output_stream
+    #pragma HLS INTERFACE ap_ctrl_none port=return
+
+    static input_t input[NUM_CHANNELS][SEQ_LEN];
+    static float_t output[NUM_CLASSES];
     static float_t conv1_out[CONV1_OUT][SEQ_LEN];
     static float_t pool1_out[CONV1_OUT][SEQ_LEN/POOL_SIZE];
     static float_t conv2_out[CONV2_OUT][SEQ_LEN/POOL_SIZE];
     static float_t flatten_vec[CONV2_OUT * (SEQ_LEN/POOL_SIZE)];
     static float_t fc1_out[FC1_NEURONS];
+
+    Read_Input: for(int c=0; c<NUM_CHANNELS; c++) {
+        for(int i=0; i<SEQ_LEN; i++) {
+            #pragma HLS PIPELINE II=1
+            input[c][i] = input_stream.read();
+        }
+    }
 
     // Conv1 -> ReLU
     conv1d_layer1(input, conv1_weight, conv1_bias, conv1_out, NUM_CHANNELS, CONV1_OUT);
@@ -163,4 +176,9 @@ void cnn_forward(
 
     // FC2 -> Output
     fc(fc1_out, fc2_weight, fc2_bias, output, FC1_NEURONS, NUM_CLASSES);
+
+    Write_Output: for(int i=0; i<NUM_CLASSES; i++) {
+        #pragma HLS PIPELINE II=1
+        output_stream.write(output[i]);
+    }
 }

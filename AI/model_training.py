@@ -160,7 +160,7 @@ def generate_c_headers():
         with open(filename, "w") as f:
             f.write(f"#ifndef {var_name.upper()}_H\n")
             f.write(f"#define {var_name.upper()}_H\n\n")
-            f.write(f"float {var_name}[] = {{\n")
+            f.write(f"static const float {var_name}[] = {{\n")
             flat = array.flatten()
             for i, val in enumerate(flat):
                 f.write(f"{val:.6f}f, ")

@@ -4,15 +4,16 @@
 #include <string>
 #include <vector>
 #include <algorithm> // for std::max_element
-#include "myproject.h" // your HLS top function
+#include "myproject.h" // HLS top function
 #include <unistd.h>
 #include <stdio.h>
+#include <hls_stream.h>
 
 #define NUM_CHANNELS 6
 #define SEQ_LEN 60
 #define NUM_CLASSES 4
 
-typedef int16_t input_t;
+typedef int32_t input_t;
 typedef float float_t;
 
 // Utility: get argmax of logits
@@ -73,7 +74,18 @@ int main() {
                         input[ch][t] = static_cast<input_t>(current_matrix[t][ch]);
 
                 // Call HLS CNN
-                cnn_forward(input, output);
+                hls::stream<input_t> input_stream;
+                hls::stream<float_t> output_stream;
+
+                for (int t = 0; t < SEQ_LEN; t++)
+                    for (int ch = 0; ch < NUM_CHANNELS; ch++)
+                        input_stream.write(input[ch][t]);
+
+                cnn_forward(input_stream, output_stream);
+
+                // Read output from stream
+                for (int c = 0; c < NUM_CLASSES; c++)
+                    output[c] = output_stream.read();
 
                 // Write logits to file
                 for (int c = 0; c < NUM_CLASSES; c++) {
@@ -124,7 +136,15 @@ int main() {
             for (int ch = 0; ch < NUM_CHANNELS; ch++)
                 input[ch][t] = static_cast<input_t>(current_matrix[t][ch]);
 
-        cnn_forward(input, output);
+        // Call HLS CNN
+        hls::stream<input_t> input_stream;
+        hls::stream<float_t> output_stream;
+
+        for (int t = 0; t < SEQ_LEN; t++)
+            for (int ch = 0; ch < NUM_CHANNELS; ch++)
+                input_stream.write(input[ch][t]);
+
+        cnn_forward(input_stream, output_stream);
 
         // Write logits
         for (int c = 0; c < NUM_CLASSES; c++) {
