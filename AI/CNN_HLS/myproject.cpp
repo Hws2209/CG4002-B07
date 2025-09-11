@@ -47,7 +47,7 @@ void conv1d_layer1(
                     if(idx >=0 && idx < SEQ_LEN) sum += float_t(input[ic][idx]) * weight[oc*in_channels*KERNEL_SIZE + ic*KERNEL_SIZE + k];
                 }
             }
-            output[oc][i] = sum;
+            output[oc][i] = relu(sum);
         }
     }
 }
@@ -71,7 +71,7 @@ void conv1d_layer2(
                     if(idx >=0 && idx < SEQ_LEN/POOL_SIZE) sum += input[ic][idx] * weight[oc*in_channels*KERNEL_SIZE + ic*KERNEL_SIZE + k];
                 }
             }
-            output[oc][i] = sum;
+            output[oc][i] = relu(sum);
         }
     }
 }
@@ -101,14 +101,21 @@ void fc(
     const float_t bias[],
     float_t output[],
     int in_size,
-    int out_size
+    int out_size,
+    bool should_relu
 ) {
-    FC_Loop_O: for(int o=0;o<out_size;o++){
+    FC_Loop_O: for (int o=0;o<out_size;o++) {
         #pragma HLS PIPELINE II=1
         float_t sum = bias[o];
-        FC_Loop_I: for(int i=0;i<in_size;i++)
+        FC_Loop_I: for (int i=0;i<in_size;i++) {
             sum += input[i] * weight[o*in_size + i];
-        output[o] = sum;
+        }
+        
+        if (should_relu) {
+            output[o] = relu(sum);
+        } else {
+            output[o] = sum;
+        }
     }
 }
 
@@ -148,34 +155,23 @@ void cnn_forward(
         }
     }
 
-    // Conv1 -> ReLU
+    // Conv1
     conv1d_layer1(input, conv1_weight, conv1_bias, conv1_out, NUM_CHANNELS, CONV1_OUT);
-    Conv1_ReLU_Loop: for(int c=0;c<CONV1_OUT;c++)
-        for(int i=0;i<SEQ_LEN;i++)
-            #pragma HLS PIPELINE II=1
-            conv1_out[c][i] = relu(conv1_out[c][i]);
 
     // MaxPool
     maxpool1d(conv1_out, pool1_out, CONV1_OUT);
 
-    // Conv2 -> ReLU
+    // Conv2
     conv1d_layer2(pool1_out, conv2_weight, conv2_bias, conv2_out, CONV1_OUT, CONV2_OUT);
-    Conv2_ReLU_Loop: for(int c=0;c<CONV2_OUT;c++)
-        for(int i=0;i<SEQ_LEN/POOL_SIZE;i++)
-            #pragma HLS PIPELINE II=1
-            conv2_out[c][i] = relu(conv2_out[c][i]);
 
     // Flatten
     flatten(conv2_out, flatten_vec, CONV2_OUT);
 
-    // FC1 -> ReLU
-    fc(flatten_vec, fc1_weight, fc1_bias, fc1_out, CONV2_OUT*(SEQ_LEN/POOL_SIZE), FC1_NEURONS);
-    FC1_ReLU_Loop: for(int i=0;i<FC1_NEURONS;i++)
-        #pragma HLS PIPELINE II=1
-        fc1_out[i] = relu(fc1_out[i]);
+    // FC1
+    fc(flatten_vec, fc1_weight, fc1_bias, fc1_out, CONV2_OUT*(SEQ_LEN/POOL_SIZE), FC1_NEURONS, true);
 
-    // FC2 -> Output
-    fc(fc1_out, fc2_weight, fc2_bias, output, FC1_NEURONS, NUM_CLASSES);
+    // FC2
+    fc(fc1_out, fc2_weight, fc2_bias, output, FC1_NEURONS, NUM_CLASSES, false);
 
     Write_Output: for(int i=0; i<NUM_CLASSES; i++) {
         #pragma HLS PIPELINE II=1
