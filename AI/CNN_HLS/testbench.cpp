@@ -77,8 +77,8 @@ int main() {
                 hls::stream<input_t> input_stream;
                 hls::stream<float_t> output_stream;
 
-                for (int t = 0; t < SEQ_LEN; t++)
-                    for (int ch = 0; ch < NUM_CHANNELS; ch++)
+                for (int ch = 0; ch < NUM_CHANNELS; ch++)
+                    for (int t = 0; t < SEQ_LEN; t++)
                         input_stream.write(input[ch][t]);
 
                 cnn_forward(input_stream, output_stream);
@@ -140,8 +140,8 @@ int main() {
         hls::stream<input_t> input_stream;
         hls::stream<float_t> output_stream;
 
-        for (int t = 0; t < SEQ_LEN; t++)
-            for (int ch = 0; ch < NUM_CHANNELS; ch++)
+        for (int ch = 0; ch < NUM_CHANNELS; ch++)
+            for (int t = 0; t < SEQ_LEN; t++)
                 input_stream.write(input[ch][t]);
 
         cnn_forward(input_stream, output_stream);

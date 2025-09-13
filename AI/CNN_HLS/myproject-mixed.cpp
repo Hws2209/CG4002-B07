@@ -102,40 +102,39 @@ void maxpool1d(
 
 // ---------------- Fully Connected ----------------
 void fc(
-    const float_t input[],
-    float_t output[],
+    hls::stream<float_t> &in_stream,
+    hls::stream<float_t> &out_stream,
     const float_t weight[],
     const float_t bias[],
     int in_size,
     int out_size,
     bool should_relu
 ) {
-    FC_Loop_O: for (int o = 0; o < out_size; o++) {
-        #pragma HLS PIPELINE II=2
-        float_t sum = bias[o];
-        FC_Loop_I: for (int i = 0; i < in_size; i++) {
-            #pragma HLS ALLOCATION instances=fmul limit=64 operation
-            sum += input[i] * weight[o*in_size + i];
-        }
-        
-        if (should_relu) {
-            output[o] = relu(sum);
-        } else {
-            output[o] = sum;
+    float_t sum[FC1_NEURONS];
+    #pragma HLS ARRAY_PARTITION variable=sum complete dim=1
+
+    // Initialize partial sums with bias
+    for (int o = 0; o < out_size; o++) {
+        #pragma HLS PIPELINE II=1
+        sum[o] = bias[o];
+    }
+
+    // Streaming accumulation
+    FC_Loop_I: for (int i = 0; i < in_size; i++) {
+        float_t val = in_stream.read();
+        FC_Loop_O: for (int o = 0; o < out_size; o++) {
+            #pragma HLS PIPELINE II=1
+            sum[o] += val * weight[o*in_size + i];
         }
     }
-}
 
-// ---------------- Flatten ----------------
-void flatten(
-    const float_t input[][SEQ_LEN/POOL_SIZE],
-    float_t output[],
-    int channels
-) {
-    Flatten_Loop_C: for (int c = 0; c < channels; c++) {
-        Flatten_Loop_I: for (int i = 0; i < SEQ_LEN/POOL_SIZE; i++) {
-            #pragma HLS PIPELINE II=1
-            output[c*(SEQ_LEN/POOL_SIZE)+i] = input[c][i];
+    // Write results
+    for (int o = 0; o < out_size; o++) {
+        #pragma HLS PIPELINE II=1
+        if (should_relu) {
+            out_stream.write(relu(sum[o]));
+        } else {
+            out_stream.write(sum[o]);
         }
     }
 }
@@ -154,8 +153,8 @@ void cnn_forward(
     static float_t conv1_out[CONV1_OUT][SEQ_LEN];
     static float_t pool1_out[CONV1_OUT][SEQ_LEN/POOL_SIZE];
     static float_t conv2_out[CONV2_OUT][SEQ_LEN/POOL_SIZE];
-    static float_t flatten_vec[CONV2_OUT * (SEQ_LEN/POOL_SIZE)];
-    static float_t fc1_out[FC1_NEURONS];
+    hls::stream<float_t> conv2_stream("conv2_stream"); // [CONV2_OUT][SEQ_LEN/POOL_SIZE]
+    hls::stream<float_t> fc1_stream("fc1_stream"); // [FC1_NEURONS]
 
     Read_Input: for(int c=0; c<NUM_CHANNELS; c++) {
         for(int i=0; i<SEQ_LEN; i++) {
@@ -167,12 +166,14 @@ void cnn_forward(
     conv1d_layer1(input, conv1_out, conv1_weight, conv1_bias, NUM_CHANNELS, CONV1_OUT);
     maxpool1d(conv1_out, pool1_out, CONV1_OUT);
     conv1d_layer2(pool1_out, conv2_out, conv2_weight, conv2_bias, CONV1_OUT, CONV2_OUT);
-    flatten(conv2_out, flatten_vec, CONV2_OUT);
-    fc(flatten_vec, fc1_out, fc1_weight, fc1_bias, CONV2_OUT*(SEQ_LEN/POOL_SIZE), FC1_NEURONS, true);
-    fc(fc1_out, output, fc2_weight, fc2_bias, FC1_NEURONS, NUM_CLASSES, false);
 
-    Write_Output: for(int i=0; i<NUM_CLASSES; i++) {
-        #pragma HLS PIPELINE II=1
-        output_stream.write(output[i]);
+    Flatten_Loop_C: for (int c = 0; c < CONV2_OUT; c++) {
+        Flatten_Loop_I: for (int i = 0; i < SEQ_LEN/POOL_SIZE; i++) {
+            #pragma HLS PIPELINE II=1
+            conv2_stream.write(conv2_out[c][i]);
+        }
     }
+    
+    fc(conv2_stream, fc1_stream, fc1_weight, fc1_bias, CONV2_OUT*(SEQ_LEN/POOL_SIZE), FC1_NEURONS, true);
+    fc(fc1_stream, output_stream, fc2_weight, fc2_bias, FC1_NEURONS, NUM_CLASSES, false);
 }
