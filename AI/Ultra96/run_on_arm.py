@@ -1,4 +1,4 @@
-from pynq import Overlay, allocate
+from pynq import Overlay, allocate, PL
 from scipy.stats import skew
 import numpy as np
 
@@ -11,10 +11,18 @@ SAMPLING_RATE = 20 # TBC
 TIME_LIMIT = 3 # TBC
 WINDOW_SIZE = SAMPLING_RATE * TIME_LIMIT
 
-ol = Overlay('design_1_wrapper.bit') # TBC, Loads the FPGA bitstream
+MODEL_TYPE = "CNN"  # "CNN" | "RNN" | "MLP" | "Simplified MLP"
+
+PL.reset() # Reset the programmable logic
+ol = Overlay('design_1.bit') # Loads the FPGA bitstream
+cnn_ip = ol.cnn_forward_0
 dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
-input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input features to send to FPGA
-output_buffer = allocate(shape=(NUM_OUTPUT,), dtype=np.int32) # To store predicted action from FPGA
+
+if MODEL_TYPE == "Simplified MLP":
+    input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
+else:
+    input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input features to send to FPGA
+output_buffer = allocate(shape=(NUM_OUTPUT,), dtype=np.float32) # To store predicted action from FPGA
 
 # TBC
 action_map = {
@@ -31,6 +39,19 @@ action_map = {
     10: "touch_toes",
     11: "none"
 }
+
+
+# Check if overlay loaded successfully
+print("Overlay loaded:", ol.is_loaded())
+
+# Print available IP blocks (should show cnn_forward, DMA, etc.)
+print("Available IPs:", list(ol.ip_dict.keys()))
+
+# Print available memory-mapped registers
+print("Available MMIO regions:", ol.ip_dict.keys())
+
+# Check DMA blocks
+print("Available DMA blocks:", ol.dma_dict.keys())
 
 
 # Store data after start signal
@@ -54,7 +75,7 @@ def extract_features(input):
             np.max(np.angle(fft_axis))
         ])
 
-    return np.array(features, dtype=np.int32)
+    return np.array(features, dtype=np.float32)
 
 
 def classify_action(data_window):
@@ -71,8 +92,6 @@ def classify_action(data_window):
         dma.recvchannel.transfer(output_buffer)
         dma.sendchannel.wait()
         dma.recvchannel.wait()
-
-        output_buffer[0] = int(input("Output: "))
 
         action = output_buffer[0]
         return action_map.get(action, "unknown")
