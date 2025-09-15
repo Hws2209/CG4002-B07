@@ -1,4 +1,4 @@
 CNN_HLS/_ide
 CNN_HLS/hls_component
 CNN_HLS/.gitignore
-CNN_Vivado
+CNN_Vivado/ip_repo
