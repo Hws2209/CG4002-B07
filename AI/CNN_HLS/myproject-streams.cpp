@@ -18,8 +18,8 @@
 #define FC1_NEURONS 64
 #define NUM_CLASSES 4
 
-typedef int32_t input_t; // integer input type
-typedef float float_t; // internal float computation
+typedef int32_t input_t;
+typedef float float_t;
 
 // ---------------- ReLU ----------------
 float_t relu(float_t x) {

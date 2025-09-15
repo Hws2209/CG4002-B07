@@ -18,8 +18,8 @@
 #define FC1_NEURONS 64
 #define NUM_CLASSES 4
 
-typedef int32_t input_t; // integer input type
-typedef float float_t; // internal float computation
+typedef int32_t input_t;
+typedef float float_t;
 
 // ---------------- ReLU ----------------
 float_t relu(float_t x) {
@@ -156,8 +156,8 @@ void cnn_forward(
     hls::stream<float_t> pool_stream("pool_stream"); // [CONV2_OUT][SEQ_LEN/POOL_SIZE]
     hls::stream<float_t> fc1_stream("fc1_stream"); // [FC1_NEURONS]
 
-    Read_Input: for(int c=0; c<NUM_CHANNELS; c++) {
-        for(int i=0; i<SEQ_LEN; i++) {
+    Read_Input: for (int c = 0; c < NUM_CHANNELS; c++) {
+        for (int i = 0; i < SEQ_LEN; i++) {
             #pragma HLS PIPELINE II=1
             input[c][i] = input_stream.read();
         }

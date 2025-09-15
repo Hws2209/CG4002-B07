@@ -1,6 +1,6 @@
 from pynq import Overlay
 
-# Load your bitstream + hwh
+# Load bitstream + hwh
 ol = Overlay("design_1.bit")
 
 # Check if overlay loaded successfully

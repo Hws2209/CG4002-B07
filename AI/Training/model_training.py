@@ -8,7 +8,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 from scipy.stats import skew
 
-MODEL_TYPE = "CNN"  # "CNN" | "RNN" | "MLP" | "Simplified MLP"
+MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
 DATA_LABELS = ["class1", "class2", "class3", "class4"]
 NUM_CLASSES = len(DATA_LABELS)
@@ -18,7 +18,7 @@ EXPORT_FOLDER_NAME = "Export"
 
 BATCH_SIZE = 32
 LEARNING_RATE = 0.001
-DROPOUT = 0.3 # helps reduce overfitting
+DROPOUT = 0.3 # Helps reduce overfitting
 NUM_EPOCHS = 20
 
 # For dummy data generation
@@ -47,7 +47,7 @@ def generate_dummy_data(data_file, label_file):
 
 def extract_features(matrix):
     features = []
-    for i in range(matrix.shape[1]):  # each axis
+    for i in range(matrix.shape[1]): # Each axis
         axis = matrix[:, i]
         fft_axis = np.fft.fft(axis)
         features.extend([
@@ -73,7 +73,7 @@ def import_data(data_file, label_file, lines_per_matrix):
     with open(data_file, "r") as f:
         for line in f:
             line = line.strip()
-            if not line:  # empty line indicates end of a matrix
+            if not line: # Empty line indicates end of a matrix
                 if current_matrix:
                     matrices.append(np.array(current_matrix, dtype=float))
                     current_matrix = []
@@ -111,7 +111,7 @@ def import_data(data_file, label_file, lines_per_matrix):
 
 
 def fold_bn_into_conv(conv_layer, bn_layer):
-    W = conv_layer.weight.detach().cpu().numpy()  # shape: [out_channels, in_channels, kernel]
+    W = conv_layer.weight.detach().cpu().numpy() # Shape: [out_channels, in_channels, kernel]
     b = conv_layer.bias.detach().cpu().numpy() if conv_layer.bias is not None else np.zeros(W.shape[0], dtype=np.float32)
     
     gamma = bn_layer.weight.detach().cpu().numpy()
@@ -121,8 +121,8 @@ def fold_bn_into_conv(conv_layer, bn_layer):
     eps = bn_layer.eps
 
     # Fold BN into Conv
-    std = np.sqrt(var + eps)             # shape: [out_channels]
-    W_folded = W * (gamma / std)[:, None, None]  # broadcast over in_channels and kernel
+    std = np.sqrt(var + eps) # Shape: [out_channels]
+    W_folded = W * (gamma / std)[:, None, None] # Broadcast over in_channels and kernel
     b_folded = beta + (b - mean) * (gamma / std)
 
     return W_folded, b_folded
@@ -202,7 +202,7 @@ class ActionCNN(nn.Module):
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
         x = self.pool(self.relu(self.bn2(self.conv2(x))))
-        x = torch.flatten(x, 1) # flatten
+        x = torch.flatten(x, 1)
         x = self.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
@@ -227,9 +227,9 @@ class ActionRNN(nn.Module):
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         
         out, _ = self.lstm(x, (h0, c0))
-        out = out[:, -1, :]  # take last timestep output
+        out = out[:, -1, :] # Take last timestep output
         out = self.dropout(out)
-        out = self.fc(out)   # map to class scores
+        out = self.fc(out) # Map to class scores
         return out
 
 
@@ -248,7 +248,7 @@ class ActionMLP(nn.Module):
         self.dropout = nn.Dropout(DROPOUT)
 
     def forward(self, x):
-        x = torch.flatten(x, 1) # flatten
+        x = torch.flatten(x, 1)
         x = self.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.relu(self.fc2(x))

@@ -3,9 +3,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <algorithm> // for std::max_element
-#include <cmath>     // for std::fabs
-#include "myproject.h" // HLS top function
+#include <algorithm>
+#include <cmath>
+#include "myproject.h"
 #include <unistd.h>
 #include <stdio.h>
 #include <hls_stream.h>
@@ -17,7 +17,7 @@
 typedef int32_t input_t;
 typedef float float_t;
 
-// Utility: get argmax of logits
+// Get argmax of logits
 int argmax(const float_t logits[NUM_CLASSES]) {
     int max_idx = 0;
     float_t max_val = logits[0];
@@ -65,7 +65,7 @@ int main() {
             for (int ch = 0; ch < NUM_CHANNELS; ch++)
                 input[ch][t] = static_cast<input_t>(matrix[t][ch]);
 
-        // Call HLS CNN
+        // Call CNN
         hls::stream<input_t> input_stream;
         hls::stream<float_t> output_stream;
 
@@ -96,7 +96,7 @@ int main() {
         float_t golden_logits[NUM_CLASSES];
         for (int c = 0; c < NUM_CLASSES; c++) {
             iss >> golden_logits[c];
-            if (c < NUM_CLASSES - 1) iss.ignore(1, ','); // skip comma
+            if (c < NUM_CLASSES - 1) iss.ignore(1, ',');
         }
 
         // Compare predicted class
@@ -130,7 +130,7 @@ int main() {
             int val;
             iss >> val;
             row[ch] = val;
-            if (ch < NUM_CHANNELS - 1) iss.ignore(1, ','); // skip comma
+            if (ch < NUM_CHANNELS - 1) iss.ignore(1, ',');
         }
         current_matrix.push_back(row);
     }
