@@ -1,16 +1,32 @@
 from socket import *
+import sys
 
-ultraPort = 8888
+ultraPort = 8887
 ultraSocket = socket(AF_INET, SOCK_STREAM)
-ultraSocket.bind(('', ultraPort))
+ultraSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+ultraSocket.bind(('127.0.0.1', ultraPort))
+#ultraSocket.bind(('', ultraPort))
 ultraSocket.listen()
-print('Server is set up')
-connectionSocket, clientAddr = ultraSocket.accept()
-print('Server has connected to a client')
+print('Waiting for Ultra to connect')
+
+connectionUltraSocket, clientAddr = ultraSocket.accept()
+print('Ultra has connected')
+#handshake
+message = connectionUltraSocket.recv(10) #read upto number of bytes
+print(message)
+if message == b"HELLO":
+  print('received HELLO from Ultra')
+  msg = "ACK"
+  connectionUltraSocket.send(msg.encode())
+else:
+  print('did not receive HELLO from Ultra')
+  sys.exit(1)
+   
 
 while True:
-    message = connectionSocket.recv(2048)
+    message = connectionUltraSocket.recv(2048)
+    print("received message: ", message)
 
-    connectionSocket.send(message)
+    connectionUltraSocket.send(message)
 
 connectionSocket.close()
