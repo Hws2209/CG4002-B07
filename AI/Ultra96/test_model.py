@@ -80,31 +80,82 @@ def get_model_output(data_window):
 
 def main():
     data_window = []
+    golden_logits_matrix = np.loadtxt("golden_logits.txt", dtype=np.float32) # Output from testing on laptop
+
+    sample_count = 0
+    num_failures = 0
+    num_logit_mismatches = 0
+    total_compute_time = 0.0
+
+    interactive_input = input("Interactive mode? Y/N: ")
+    interactive_mode = interactive_input.upper() == "Y"
 
     def classify_action():
-        nonlocal data_window
+        nonlocal sample_count, num_failures, num_logit_mismatches, total_compute_time, data_window
 
         # TODO: Pre-processing by identifier
         
         start_time = time.time()
         pred_logits = get_model_output(data_window)
         pred_class = int(np.argmax(pred_logits))
+
         end_time = time.time()
+        total_compute_time += (end_time - start_time)
+
+        golden_logits = golden_logits_matrix[sample_count]
+        golden_class = int(np.argmax(golden_logits))
+
+        # Compare output from Ultra96 and laptop
+        if pred_class != golden_class:
+            num_failures += 1
+
+        if np.any(np.abs(pred_logits - golden_logits) > 0.01):
+            num_logit_mismatches += 1
 
         data_window.clear()
+        sample_count += 1
+
+        if sample_count % 50 == 0:
+            print(f"Processed {sample_count} samples so far...")
+
+        if not interactive_mode:
+            return True
         
         action = DATA_LABELS[pred_class] # Get name of class
-        print(f"Action: {action}, Time taken: {(end_time - start_time)}")
-        return pred_class
-    
-    while True:
-        print("Comms code not yet here")
-        return
-        
-        # TODO: Receive data
-        
-        pred_class = classify_action()
+        print(f"Action: {action}")
 
+        continue_signal = input("Continue? Y/N: ")
+        return continue_signal.upper() == "Y"
+    
+    with open("data.txt", "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line: # Empty line indicates end of a matrix
+                if data_window:
+                    if not classify_action():
+                        break
+                continue
+            else:
+                data_window.append([int(x) for x in line.split(" ")])
+        if data_window: # Handle last matrix if file does not end with empty line
+            classify_action()
+
+    # Print summary
+    print(f"Processed {sample_count} samples")
+    
+    if sample_count > 0:
+        print(f"Average time per prediction: {total_compute_time/sample_count:.6f} seconds")
+
+    if num_failures == 0:
+        print("Class check passed! All predicted classes match the golden.")
+    else:
+        print(f"Class check failed! {num_failures} mismatches found.")
+
+    if num_logit_mismatches == 0:
+        print("Logit check passed! All logits within 0.01 tolerance.")
+    else:
+        print(f"Logit check failed! {num_logit_mismatches} values exceeded 0.01 difference.")
+        
 
 if __name__ == "__main__":
     main()
