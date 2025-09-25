@@ -10,7 +10,7 @@
 #include "headers/fc2_bias.h"
 
 #define NUM_CHANNELS 6
-#define SEQ_LEN 60 // WINDOW_SIZE
+#define SEQ_LEN 20 // WINDOW_SIZE
 #define CONV1_OUT 6
 #define CONV2_OUT 3
 #define KERNEL_SIZE 3
@@ -63,6 +63,8 @@ void conv1d_layer2(
     int in_channels,
     int out_channels
 ) {
+    #pragma HLS ARRAY_PARTITION variable=input complete dim=1
+    
     Conv2_Loop_OC: for (int oc = 0; oc < out_channels; oc++) {
         Conv2_Loop_I: for (int i = 0; i < SEQ_LEN; i++) {
             #pragma HLS PIPELINE II=1
@@ -110,6 +112,8 @@ void fc(
     int out_size,
     bool should_relu
 ) {
+    #pragma HLS ARRAY_PARTITION variable=input complete dim=1
+    
     FC_Loop_O: for (int o = 0; o < out_size; o++) {
         #pragma HLS PIPELINE II=2
         float_t sum = bias[o];
@@ -132,6 +136,8 @@ void flatten(
     float_t output[],
     int channels
 ) {
+    #pragma HLS ARRAY_PARTITION variable=input complete dim=1
+    
     Flatten_Loop_C: for (int c = 0; c < channels; c++) {
         Flatten_Loop_I: for (int i = 0; i < SEQ_LEN/POOL_SIZE; i++) {
             #pragma HLS PIPELINE II=1

@@ -10,22 +10,24 @@ from scipy.stats import skew
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
-DATA_LABELS = ["class1", "class2", "class3", "class4"]
+DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
 NUM_CLASSES = len(DATA_LABELS)
 NUM_DATA = 6
-DATA_FOLDER_NAME = "Dataset/DummyData"
-EXPORT_FOLDER_NAME = "Export"
+
+DATA = "SimpleData"
+DATA_FOLDER_NAME = f"Dataset/{DATA}"
+EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
 BATCH_SIZE = 32
 LEARNING_RATE = 0.001
 DROPOUT = 0.3 # Helps reduce overfitting
 NUM_EPOCHS = 20
 
-# For dummy data generation
-SAMPLING_RATE = 20
-TIME_LIMIT = 3
+SAMPLING_RATE = 10
+TIME_LIMIT = 2
 WINDOW_SIZE = SAMPLING_RATE * TIME_LIMIT
-NUM_DUMMY_PER_LABEL = 100
+
+NUM_DUMMY_PER_LABEL = 100 # For dummy data generation
 
 
 def generate_dummy_data(data_file, label_file):
@@ -39,7 +41,7 @@ def generate_dummy_data(data_file, label_file):
 
                 matrix = np.random.randint(1000 * label_index, 1000 * (label_index + 1), size=(WINDOW_SIZE, NUM_DATA))
                 for row in matrix:
-                    df.write(", ".join(map(str, row)) + "\n")
+                    df.write(" ".join(map(str, row)) + "\n")
                 df.write("\n")
     
     print(f"Generated data matrices in {data_file} and labels in {label_file}")
@@ -78,7 +80,7 @@ def import_data(data_file, label_file, lines_per_matrix):
                     matrices.append(np.array(current_matrix, dtype=float))
                     current_matrix = []
             else:
-                current_matrix.append([float(x) for x in line.split(",")])
+                current_matrix.append([float(x) for x in line.split(" ")])
         # Add last matrix if file does not end with empty line
         if current_matrix:
             matrices.append(np.array(current_matrix, dtype=float))
@@ -274,15 +276,19 @@ class SimplifiedMLP(nn.Module):
 
 
 def main():
-    should_generate_data = input("Generate dummy data? Y/N: ")
-    if should_generate_data.upper() == "Y":
-        generate_dummy_data(f"{DATA_FOLDER_NAME}/data.txt", f"{DATA_FOLDER_NAME}/label.txt")
+    data_file = f"{DATA_FOLDER_NAME}/data.txt"
+    label_file = f"{DATA_FOLDER_NAME}/label.txt"
+
+    if not (os.path.exists(data_file) and os.path.exists(label_file)):
+        should_generate_data = input("Generate dummy data? Y/N: ")
+        if should_generate_data.upper() == "Y":
+            generate_dummy_data(data_file, label_file)
 
     # Prepare data
-    X_tensor, y_tensor = import_data(f"{DATA_FOLDER_NAME}/data.txt", f"{DATA_FOLDER_NAME}/label.txt", WINDOW_SIZE)
+    X_tensor, y_tensor = import_data(data_file, label_file, WINDOW_SIZE)
     dataset = TensorDataset(X_tensor, y_tensor)
     num_samples = len(dataset)
-    test_size = int(0.25 * num_samples)
+    test_size = int(0.3 * num_samples)
     train_size = num_samples - test_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 

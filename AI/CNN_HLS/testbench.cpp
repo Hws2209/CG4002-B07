@@ -11,7 +11,7 @@
 #include <hls_stream.h>
 
 #define NUM_CHANNELS 6
-#define SEQ_LEN 60
+#define SEQ_LEN 20
 #define NUM_CLASSES 4
 
 typedef int32_t input_t;
@@ -96,7 +96,6 @@ int main() {
         float_t golden_logits[NUM_CLASSES];
         for (int c = 0; c < NUM_CLASSES; c++) {
             iss >> golden_logits[c];
-            if (c < NUM_CLASSES - 1) iss.ignore(1, ',');
         }
 
         // Compare predicted class
@@ -104,9 +103,9 @@ int main() {
         int golden_class = argmax(golden_logits);
         if (pred_class != golden_class) num_failures++;
 
-        // Logit closeness check (±0.1)
+        // Logit closeness check (0.01)
         for (int c = 0; c < NUM_CLASSES; c++) {
-            if (std::fabs(output[c] - golden_logits[c]) > 0.1f) {
+            if (std::fabs(output[c] - golden_logits[c]) > 0.01f) {
                 num_logit_mismatches++;
             }
         }
@@ -127,10 +126,7 @@ int main() {
         std::vector<int> row(NUM_CHANNELS, 0);
         std::istringstream iss(line);
         for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            int val;
-            iss >> val;
-            row[ch] = val;
-            if (ch < NUM_CHANNELS - 1) iss.ignore(1, ',');
+            iss >> row[ch];
         }
         current_matrix.push_back(row);
     }
@@ -152,10 +148,10 @@ int main() {
         std::cout << "Class check failed! " << num_failures << " mismatches found.\n";
 
     if (num_logit_mismatches == 0)
-        std::cout << "Logit check passed! All logits within ±0.1 tolerance.\n";
+        std::cout << "Logit check passed! All logits within 0.01 tolerance.\n";
     else
         std::cout << "Logit check failed! " << num_logit_mismatches
-                  << " values exceeded ±0.1 difference.\n";
+                  << " values exceeded 0.01 difference.\n";
 
     return (num_failures == 0 && num_logit_mismatches == 0) ? 0 : 1;
 }

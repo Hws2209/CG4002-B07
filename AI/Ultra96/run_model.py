@@ -5,10 +5,10 @@ import time
 
 # TBC
 action_map = {
-    0: "class1",
-    1: "class2",
-    2: "class3",
-    3: "class4"
+    0: "0-idle",
+    1: "1-wave",
+    2: "2-updown",
+    3: "3-rotate"
 }
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
@@ -17,11 +17,11 @@ NUM_CLASSES = len(action_map)
 
 NUM_FEATURES = 8
 
-SAMPLING_RATE = 20 # TBC
-TIME_LIMIT = 3 # TBC
+SAMPLING_RATE = 10
+TIME_LIMIT = 2
 WINDOW_SIZE = SAMPLING_RATE * TIME_LIMIT
 
-NUM_DATA = 6 # TBC
+NUM_DATA = 6
 NUM_INPUT = NUM_FEATURES * NUM_DATA if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA
 
 
@@ -112,7 +112,7 @@ def main():
         if pred_class != golden_class:
             num_failures += 1
 
-        if np.any(np.abs(pred_logits - golden_logits) > 0.1):
+        if np.any(np.abs(pred_logits - golden_logits) > 0.01):
             num_logit_mismatches += 1
 
         data_window.clear()
@@ -139,7 +139,7 @@ def main():
                         break
                 continue
             else:
-                data_window.append([int(x) for x in line.split(",")])
+                data_window.append([int(x) for x in line.split(" ")])
         if data_window: # Handle last matrix if file does not end with empty line
             classify_action()
 
@@ -155,9 +155,9 @@ def main():
         print(f"Class check failed! {num_failures} mismatches found.")
 
     if num_logit_mismatches == 0:
-        print("Logit check passed! All logits within ±0.1 tolerance.")
+        print("Logit check passed! All logits within 0.01 tolerance.")
     else:
-        print(f"Logit check failed! {num_logit_mismatches} values exceeded ±0.1 difference.")
+        print(f"Logit check failed! {num_logit_mismatches} values exceeded 0.01 difference.")
         
 
 if __name__ == "__main__":

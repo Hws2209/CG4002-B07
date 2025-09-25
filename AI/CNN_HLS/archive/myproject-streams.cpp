@@ -10,7 +10,7 @@
 #include "headers/fc2_bias.h"
 
 #define NUM_CHANNELS 6
-#define SEQ_LEN 60 // WINDOW_SIZE
+#define SEQ_LEN 20 // WINDOW_SIZE
 #define CONV1_OUT 6
 #define CONV2_OUT 3
 #define KERNEL_SIZE 3
@@ -49,7 +49,9 @@ void conv1d_layer1(
             #pragma HLS PIPELINE II=1
             float_t sum = bias[oc];
             Conv1_Loop_IC: for (int ic = 0; ic < in_channels; ic++) {
+                #pragma HLS UNROLL
                 Conv1_Loop_K: for (int k = 0; k < KERNEL_SIZE; k++) {
+                    #pragma HLS UNROLL
                     int idx = i + k - 1; // padding='same'
                     if (idx >= 0 && idx < SEQ_LEN) {
                         sum += float_t(input_buf[ic][idx]) * weight[oc*in_channels*KERNEL_SIZE + ic*KERNEL_SIZE + k];
@@ -84,7 +86,9 @@ void conv1d_layer2(
             #pragma HLS PIPELINE II=1
             float_t sum = bias[oc];
             Conv2_Loop_IC: for (int ic = 0; ic < in_channels; ic++) {
+                #pragma HLS UNROLL
                 Conv2_Loop_K: for (int k = 0; k < KERNEL_SIZE; k++) {
+                    #pragma HLS UNROLL
                     int idx = i + k - 1; // padding='same'
                     if (idx >= 0 && idx < SEQ_LEN) {
                         sum += input_buf[ic][idx] * weight[oc*in_channels*KERNEL_SIZE + ic*KERNEL_SIZE + k];
@@ -130,22 +134,22 @@ void fc(
 
     // Initialize partial sums with bias
     for (int o = 0; o < out_size; o++) {
-        #pragma HLS PIPELINE II=1
+        #pragma HLS UNROLL
         sum[o] = bias[o];
     }
 
     // Streaming accumulation
     FC_Loop_I: for (int i = 0; i < in_size; i++) {
+        #pragma HLS PIPELINE II=1
         float_t val = in_stream.read();
         FC_Loop_O: for (int o = 0; o < out_size; o++) {
-            #pragma HLS PIPELINE II=1
             sum[o] += val * weight[o*in_size + i];
         }
     }
 
     // Write results
     for (int o = 0; o < out_size; o++) {
-        #pragma HLS PIPELINE II=1
+        #pragma HLS UNROLL
         if (should_relu) {
             out_stream.write(relu(sum[o]));
         } else {
@@ -159,7 +163,6 @@ void cnn_forward(
     hls::stream<input_t> &input_stream, // [NUM_CHANNELS][SEQ_LEN]
     hls::stream<float_t> &output_stream // [NUM_CLASSES]
 ) {
-    #pragma HLS DATAFLOW
     #pragma HLS INTERFACE axis port=input_stream
     #pragma HLS INTERFACE axis port=output_stream
     #pragma HLS INTERFACE ap_ctrl_none port=return
