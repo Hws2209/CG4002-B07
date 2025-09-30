@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader, TensorDataset, random_split
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 from scipy.stats import skew
+import json
+import optuna
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
@@ -18,10 +20,9 @@ DATA = "SimpleData"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
-BATCH_SIZE = 32
-LEARNING_RATE = 0.001
-DROPOUT = 0.3 # Helps reduce overfitting
+SEED = 42
 NUM_EPOCHS = 20
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAMPLING_RATE = 10
 TIME_LIMIT = 2
@@ -29,6 +30,10 @@ WINDOW_SIZE = SAMPLING_RATE * TIME_LIMIT
 
 NUM_DUMMY_PER_LABEL = 100 # For dummy data generation
 
+
+# =========================
+# Data generation / import
+# =========================
 
 def generate_dummy_data(data_file, label_file):
     os.makedirs(os.path.dirname(data_file), exist_ok=True)
@@ -112,6 +117,11 @@ def import_data(data_file, label_file, lines_per_matrix):
     return X_tensor, y_tensor
 
 
+
+# =========================
+# Export
+# =========================
+
 def fold_bn_into_conv(conv_layer, bn_layer):
     W = conv_layer.weight.detach().cpu().numpy() # Shape: [out_channels, in_channels, kernel]
     b = conv_layer.bias.detach().cpu().numpy() if conv_layer.bias is not None else np.zeros(W.shape[0], dtype=np.float32)
@@ -180,17 +190,17 @@ def generate_c_headers():
             write_header(array, var_name, header_file)
 
 
+
+# =========================
+# Model Definitions
+# =========================
+
 # CNN Model
 class ActionCNN(nn.Module):
-    def __init__(self, num_channels, num_classes, sequence_length):
-        super(ActionCNN, self).__init__()
-
-        conv1_out = 6
-        conv2_out = 3
-        kernel_size_conv = 3
-        pool_size = 2
-        fc1_neurons = 64
-        
+    def __init__(self, num_channels, num_classes, sequence_length,
+                 conv1_out=6, conv2_out=3, kernel_size_conv=3, pool_size=2,
+                 fc1_neurons=64, dropout=0.3):
+        super().__init__()
         self.conv1 = nn.Conv1d(num_channels, conv1_out, kernel_size=kernel_size_conv, padding='same')
         self.bn1 = nn.BatchNorm1d(conv1_out)
         self.conv2 = nn.Conv1d(conv1_out, conv2_out, kernel_size=kernel_size_conv, padding='same')
@@ -199,7 +209,7 @@ class ActionCNN(nn.Module):
         self.fc1 = nn.Linear(conv2_out * (sequence_length // pool_size), fc1_neurons)
         self.fc2 = nn.Linear(fc1_neurons, num_classes)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(DROPOUT)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
@@ -213,14 +223,13 @@ class ActionCNN(nn.Module):
 
 # RNN Model
 class ActionRNN(nn.Module):
-    def __init__(self, num_channels, num_classes, sequence_length):
-        super(ActionRNN, self).__init__()
-        
-        self.hidden_size = 64
-        self.num_layers = 1
-        
-        self.lstm = nn.LSTM(input_size=num_channels, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, dropout=DROPOUT)
-        self.dropout = nn.Dropout(DROPOUT)
+    def __init__(self, num_channels, num_classes, hidden_size=64, num_layers=1, dropout=0.3):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size=num_channels, hidden_size=self.hidden_size,
+                            num_layers=self.num_layers, batch_first=True, dropout=dropout)
+        self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(self.hidden_size, num_classes)
     
     def forward(self, x):        
@@ -237,17 +246,14 @@ class ActionRNN(nn.Module):
 
 # MLP Model
 class ActionMLP(nn.Module):
-    def __init__(self, input_size, num_classes):
-        super(ActionMLP, self).__init__()
-
-        hidden1 = 256
-        hidden2 = 128
-
+    def __init__(self, input_size, num_classes,
+                 hidden1=256, hidden2=128, dropout=0.3):
+        super().__init__()
         self.fc1 = nn.Linear(input_size, hidden1)
         self.fc2 = nn.Linear(hidden1, hidden2)
         self.fc3 = nn.Linear(hidden2, num_classes)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(DROPOUT)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         x = torch.flatten(x, 1)
@@ -260,19 +266,92 @@ class ActionMLP(nn.Module):
 
 # MLP Model with summarised data
 class SimplifiedMLP(nn.Module):
-    def __init__(self, input_size, num_classes):
-        super(SimplifiedMLP, self).__init__()
-
-        hidden_size=64
-
+    def __init__(self, input_size, num_classes, hidden_size=64, dropout=0.3):
+        super().__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_size, num_classes)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         x = self.relu(self.fc1(x))
+        x = self.dropout(x)
         x = self.fc2(x)
         return x
+
+
+
+# =========================
+# Objective for Optuna
+# =========================
+
+def objective(trial, train_dataset, val_dataset, X_tensor_shape):
+    # Hyperparameter search space
+    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
+    dropout = trial.suggest_float("dropout", 0.1, 0.5)
+    batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    # Model-specific hyperparameters
+    if MODEL_TYPE == "CNN":
+        conv1_out = trial.suggest_categorical("conv1_out", [4, 6, 8])
+        conv2_out = trial.suggest_categorical("conv2_out", [2, 3, 4])
+        kernel_size_conv = trial.suggest_categorical("kernel_size_conv", [2, 3, 5])
+        pool_size = trial.suggest_categorical("pool_size", [2, 3])
+        fc1_neurons = trial.suggest_categorical("fc1_neurons", [32, 64, 128])
+        model = ActionCNN(num_channels=X_tensor_shape[1], num_classes=NUM_CLASSES,
+                          sequence_length=X_tensor_shape[2],
+                          conv1_out=conv1_out, conv2_out=conv2_out,
+                          kernel_size_conv=kernel_size_conv, pool_size=pool_size,
+                          fc1_neurons=fc1_neurons, dropout=dropout)
+    elif MODEL_TYPE == "RNN":
+        hidden_size = trial.suggest_categorical("hidden_size", [32, 64, 128])
+        num_layers = trial.suggest_categorical("num_layers", [1, 2, 3])
+        model = ActionRNN(num_channels=X_tensor_shape[2], num_classes=NUM_CLASSES,
+                          hidden_size=hidden_size, num_layers=num_layers, dropout=dropout)
+    elif MODEL_TYPE == "MLP":
+        hidden1 = trial.suggest_categorical("hidden1", [128, 256, 512])
+        hidden2 = trial.suggest_categorical("hidden2", [64, 128, 256])
+        model = ActionMLP(input_size=X_tensor_shape[1], num_classes=NUM_CLASSES,
+                          hidden1=hidden1, hidden2=hidden2, dropout=dropout)
+    elif MODEL_TYPE == "Simplified MLP":
+        hidden_size = trial.suggest_categorical("hidden_size", [32, 64, 128])
+        model = SimplifiedMLP(input_size=X_tensor_shape[1], num_classes=NUM_CLASSES,
+                              hidden_size=hidden_size, dropout=dropout)
+    else:
+        raise ValueError("Invalid MODEL_TYPE")
+
+    model.to(DEVICE)
+
+    # Loss and optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+
+    # Train few epochs for tuning
+    for epoch in range(5):
+        model.train()
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+            optimizer.zero_grad()
+            loss = criterion(model(inputs), labels)
+            loss.backward()
+            optimizer.step()
+
+    # Validation accuracy
+    model.eval()
+    correct, total = 0, 0
+    with torch.no_grad():
+        for inputs, labels in val_loader:
+            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    val_acc = correct / total
+    return val_acc
+
 
 
 def main():
@@ -288,56 +367,76 @@ def main():
     X_tensor, y_tensor = import_data(data_file, label_file, WINDOW_SIZE)
     dataset = TensorDataset(X_tensor, y_tensor)
     num_samples = len(dataset)
-    test_size = int(0.3 * num_samples)
-    train_size = num_samples - test_size
-    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    # Split train, val, test
+    test_size = val_size = int(0.15 * num_samples)
+    train_size = num_samples - test_size - val_size
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size],
+                                                            generator=torch.Generator().manual_seed(SEED))
 
+    # Optuna tuning
+    study = optuna.create_study(direction="maximize")
+    study.optimize(lambda trial: objective(trial, train_dataset, val_dataset, X_tensor.shape), n_trials=20)
+    print("Best hyperparameters:", study.best_params)
+
+    # Retrain final model on train + val sets
+    final_train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+    final_loader = DataLoader(final_train_dataset, batch_size=study.best_params["batch_size"], shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=study.best_params["batch_size"], shuffle=False)
+
+    # Construct final model using best hyperparameters
+    best_params = study.best_params
+    dropout = best_params["dropout"]
     if MODEL_TYPE == "CNN":
-        model = ActionCNN(num_channels=X_tensor.shape[1], num_classes=NUM_CLASSES, sequence_length=X_tensor.shape[2])
+        model = ActionCNN(num_channels=X_tensor.shape[1], num_classes=NUM_CLASSES,
+                          sequence_length=X_tensor.shape[2],
+                          conv1_out=best_params["conv1_out"],
+                          conv2_out=best_params["conv2_out"],
+                          kernel_size_conv=best_params["kernel_size_conv"],
+                          pool_size=best_params["pool_size"],
+                          fc1_neurons=best_params["fc1_neurons"],
+                          dropout=dropout)
     elif MODEL_TYPE == "RNN":
-        model = ActionRNN(num_channels=X_tensor.shape[2], num_classes=NUM_CLASSES, sequence_length=X_tensor.shape[1])
+        model = ActionRNN(num_channels=X_tensor.shape[2], num_classes=NUM_CLASSES,
+                          hidden_size=best_params["hidden_size"],
+                          num_layers=best_params["num_layers"],
+                          dropout=dropout)
     elif MODEL_TYPE == "MLP":
-        model = ActionMLP(input_size=X_tensor.shape[1], num_classes=NUM_CLASSES)
+        model = ActionMLP(input_size=X_tensor.shape[1], num_classes=NUM_CLASSES,
+                          hidden1=best_params["hidden1"],
+                          hidden2=best_params["hidden2"],
+                          dropout=dropout)
     elif MODEL_TYPE == "Simplified MLP":
-        model = SimplifiedMLP(input_size=X_tensor.shape[1], num_classes=NUM_CLASSES)
-    else:
-        raise ValueError("Invalid MODEL_TYPE")
+        model = SimplifiedMLP(input_size=X_tensor.shape[1], num_classes=NUM_CLASSES,
+                              hidden_size=best_params["hidden_size"], dropout=dropout)
 
-    # Loss and optimizer
+    model.to(DEVICE)
+    optimizer = optim.Adam(model.parameters(), lr=best_params["lr"])
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    # Training loop
+    # Train final model
     for epoch in range(NUM_EPOCHS):
         model.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        for inputs, labels in train_loader:
+        running_loss, correct, total = 0.0, 0, 0
+        for inputs, labels in final_loader:
+            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            
             running_loss += loss.item() * inputs.size(0)
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-        
-        epoch_loss = running_loss / total
-        epoch_acc = correct / total
-        print(f'Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.4f}')
+        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {running_loss/total:.4f}, Accuracy: {correct/total:.4f}")
 
-    # Evaluation on test set
+    # Evaluate on test set
     model.eval()
-    all_preds = []
-    all_labels = []
+    all_preds, all_labels = [], []
     with torch.no_grad():
         for inputs, labels in test_loader:
+            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
             outputs = model(inputs)
             _, predicted = torch.max(outputs, 1)
             all_preds.extend(predicted.cpu().numpy())
@@ -348,23 +447,24 @@ def main():
     print(cm)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot(cmap=plt.cm.Blues)
-    plt.title("CNN Action Classification Confusion Matrix")
+    plt.title(f"{MODEL_TYPE} Confusion Matrix")
     plt.show()
 
-    # Export params and model
-    should_export_model = input("Export params and model? Y/N: ")
-    if should_export_model.upper() == "Y":
+    # Export
+    should_export = input("Export? Y/N: ")
+    if should_export.upper() == "Y":
+        with open(f"{EXPORT_FOLDER_NAME}/best_params.txt", "w") as f:
+            json.dump(best_params, f, indent=4)
+        print("Best hyperparameters exported")
+
         export_model(model)
         generate_c_headers()
         torch.save(model, f"{EXPORT_FOLDER_NAME}/model.pt")
+        print("Model exported")
 
-    # Export golden logits
-    should_export_test_vectors = input("Export golden logits? Y/N: ")
-    if should_export_test_vectors.upper() == "Y":
         model.eval()
         with torch.no_grad():
             logits = model(X_tensor).numpy()
-
         np.savetxt(f"{EXPORT_FOLDER_NAME}/golden_logits.txt", logits, fmt="%.6f")
         print("Golden logits exported")
 
