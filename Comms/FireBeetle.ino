@@ -1,12 +1,30 @@
+#include <CryptoAES_CBC.h>
+#include <AES.h>
+
 #include <Arduino.h>
 #include <WiFi.h>
+#define SEND_DURATION 2000 
+//#include <ESPping.h>     // Install "ESPping" library
+
+//key[16] cotain 16 byte key(128 bit) for encryption
+byte key[16]={0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+//plaintext[16] contain the text we need to encrypt
+byte plaintext[16]={0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+//cypher[16] stores the encrypted text
+byte cypher[16];
+//decryptedtext[16] stores decrypted text after decryption
+byte decryptedtext[16];
+//creating an object of AES128 class
+AES128 aes128;
+
+
 
 //WiFi setup
 const char* ssid = "Wenwuuu";
 const char* password = "11223344";
-const char* host = "10.104.169.64";
+const char* host = "10.81.25.64";
 const int port = 2105;
-int count = 0;
+int packetCount = 0;
 
 WiFiClient client;
 
@@ -16,8 +34,7 @@ struct SensorPacket {
   uint16_t header;
   uint16_t device_id; //denote left/right arm/leg, use 2 bytes for alignment
   uint16_t ax, ay, az;
-  uint16_t gx, gy, gz; 
-  uint16_t mx, my, mz;
+  uint16_t gx, gy, gz;
 };
 
 SensorPacket packet;
@@ -38,15 +55,33 @@ void setup() {
 
   //temporarily using mac address to differentiate firebeetles. may not be reliable.
   //on second thought, hardcode is way btr, easier to ensure consistency
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  packet.device_id = (mac[5] % 4)+1;
-  Serial.print("Device ID: "); Serial.println(packet.device_id);
+//  uint8_t mac[6];
+//  WiFi.macAddress(mac);
+//  packet.device_id = (mac[5] % 4)+1;
+//  Serial.print("Device ID: "); Serial.println(packet.device_id);
+  Serial.print("Arduino IP: ");
+  Serial.println(WiFi.localIP());
+
+  // Step 1: Ping Windows host
+  Serial.print("server IP:   ");
+  Serial.println(host);
+  Serial.print("Port to connect:   ");
+  Serial.println(port);
+
+//  if (Ping.ping(host)) {
+//    Serial.println("Ping successful! Host reachable.");
+//  } else {
+//    Serial.println("Ping failed! Check network/firewall.");
+//  }
 
   //Connect to laptop
   if (!client.connect(host,port)){
     Serial.println("Connection Failed");
+  } else {
+    Serial.println("Connected to Laptop");  
   }
+  
+
 
   //handshake
   client.print("HELLO");
@@ -68,10 +103,9 @@ void setup() {
   packet.gx = 0xAB02;
   packet.gy = 0xCD20;
   packet.gz = 0xEF22;
-  packet.mx = 0xAB03;
-  packet.my = 0xCD30;
-  packet.mz = 0xEF33;
-  
+  aes128.setKey(key,16);// Setting Key for AES
+
+
 }
 
 void loop() {
@@ -81,10 +115,22 @@ void loop() {
 
   String reply = client.readStringUntil('\n');
   Serial.println("Reply from server: " + reply);
-  //client.write(mx); //sends only 1 byte. supposedly faster but not sure by how much
-  //client.print(mx);
-  client.write((uint8_t*)&packet, sizeof(packet)); // 22 bytes
-  //count += 1;
+  unsigned long startTime = millis();
+  packetCount=0;
+  packet.gz = 0xEF00;
+  for (packetCount = 0; packetCount <20; packetCount += 1){
+    aes128.encryptBlock(cypher,(byte*)&packet);//cypher->output block and packet->input block
+    client.write((uint8_t*)cypher, sizeof(packet)); // 16 bytes
+    packet.gz += 1;
+    delay(100);
+  }
+//  while (millis() - startTime < SEND_DURATION){
+//    client.write((uint8_t*)&packet, sizeof(packet)); // 22 bytes
+//    packetCount +=1;  
+//  }
+  Serial.print("Number of packets sent: ");
+  Serial.println(packetCount+1);
+  
 }
 
 // put function definitions here:

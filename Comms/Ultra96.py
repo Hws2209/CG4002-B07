@@ -3,7 +3,7 @@ import sys
 import time
 
 
-PACKET_SIZE = 22 #bytes
+PACKET_SIZE = 16 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
@@ -33,7 +33,7 @@ while True:
   packetCount = 0
   buffer = b''
   while packetCount < NUM_OF_PACKETS:
-    buffer = ultraSocket.recv(22) #read upto number of bytes
+    buffer = ultraSocket.recv(PACKET_SIZE) #read upto number of bytes
     #if len(dataPacket) < PACKET_SIZE:
     #  print("incorrect len of packet")
     #  continue

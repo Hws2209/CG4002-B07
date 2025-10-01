@@ -1,10 +1,19 @@
 #import socket 
 from socket import *
+from Crypto.Cipher import AES
 import sys
 import time
 
+key = bytes([
+    0x00, 0x01, 0x02, 0x03,
+    0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0A, 0x0B,
+    0x0C, 0x0D, 0x0E, 0x0F
+])
 
-PACKET_SIZE = 22 #bytes
+cipher = AES.new(key, AES.MODE_ECB)
+
+PACKET_SIZE = 16 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
@@ -60,6 +69,7 @@ serverPort = 2105
 serverSocket = socket(AF_INET, SOCK_STREAM)
 serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 serverSocket.bind(('0.0.0.0', serverPort))
+#serverSocket.bind(('', serverPort))
 serverSocket.listen()
 print('Waiting for firebeetle to connect')
 arduinoSocket, clientAddr = serverSocket.accept()
@@ -88,27 +98,34 @@ while True:
   packetCount = 0
   buffer = b''
   while packetCount < NUM_OF_PACKETS:
-    buffer = arduinoSocket.recv(22) #read upto number of bytes
+    buffer = arduinoSocket.recv(PACKET_SIZE) #read upto number of bytes
+    print(buffer.hex())
+    dataPacket = cipher.decrypt(buffer)
+    print(dataPacket.hex())
+    packetCount += 1
+    print(packetCount)
+    ultraSocket.send(dataPacket) #send to ultra96
+
     #if len(dataPacket) < PACKET_SIZE:
     #  print("incorrect len of packet")
     #  continue
     #buffer += recv_exact(arduinoSocket, PACKET_SIZE)
     
-    # look for header inside buffer
-    while len(buffer) >= PACKET_SIZE:
-      idx = buffer.find(HEADER)
-      if idx != -1 and len(buffer) >= PACKET_SIZE:
-          # extract aligned packet
-          dataPacket = buffer[idx: idx + PACKET_SIZE]
-          # keep leftover for next call (if streaming)
-          buffer = buffer[idx + PACKET_SIZE:]
-          print(dataPacket.hex())
-          packetCount += 1
-          print(packetCount)
-          ultraSocket.send(dataPacket) #send to ultra96
-      else:
-        print("not enough packet or header not found")
-        continue
+    ## look for header inside buffer
+    #while len(buffer) >= PACKET_SIZE:
+    #  idx = buffer.find(HEADER)
+    #  if idx != -1 and len(buffer) >= PACKET_SIZE:
+    #      # extract aligned packet
+    #      dataPacket = buffer[idx: idx + PACKET_SIZE]
+    #      # keep leftover for next call (if streaming)
+    #      buffer = buffer[idx + PACKET_SIZE:]
+    #      print(dataPacket.hex())
+    #      packetCount += 1
+    #      print(packetCount)
+    #      ultraSocket.send(dataPacket) #send to ultra96
+    #  else:
+    #    print("not enough packet or header not found")
+    #    continue
     
     #header, device_id, ax, ay, az, gx, gy, gz, mx, my, mz = struct.unpack("<H H hhh hhh hhh", dataPacket)
 
