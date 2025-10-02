@@ -1,10 +1,10 @@
 #include <CryptoAES_CBC.h>
 #include <AES.h>
-
+#include "MPU.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #define SEND_DURATION 2000 
-//#include <ESPping.h>     // Install "ESPping" library
+#include <ESPping.h>     // Install "ESPping" library
 
 //key[16] cotain 16 byte key(128 bit) for encryption
 byte key[16]={0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
@@ -22,7 +22,7 @@ AES128 aes128;
 //WiFi setup
 const char* ssid = "Wenwuuu";
 const char* password = "11223344";
-const char* host = "10.81.25.64";
+const char* host = "10.81.25.58";
 const int port = 2105;
 int packetCount = 0;
 
@@ -30,19 +30,22 @@ WiFiClient client;
 
 int16_t ax, ay, az, gx, gy, gz, mx, my, mz;
 
-struct SensorPacket {
-  uint16_t header;
-  uint16_t device_id; //denote left/right arm/leg, use 2 bytes for alignment
-  uint16_t ax, ay, az;
-  uint16_t gx, gy, gz;
-};
+// struct SensorPacket {
+//   uint16_t header;
+//   uint16_t device_id; //denote left/right arm/leg, use 2 bytes for alignment
+//   uint16_t ax, ay, az;
+//   uint16_t gx, gy, gz;
+// };
 
 SensorPacket packet;
+
+MPU mpu;
 
 // put function declarations here:
 
 void setup() {
   Serial.begin(115200);
+  mpu.begin();
   Serial.print("Testingg");
 
   WiFi.begin(ssid, password);
@@ -97,12 +100,7 @@ void setup() {
 
   //test only, hardcode sensor value
   packet.header = 0xAA55;
-  packet.ax = 0xAB01;
-  packet.ay = 0xCD10;
-  packet.az = 0xEF11;
-  packet.gx = 0xAB02;
-  packet.gy = 0xCD20;
-  packet.gz = 0xEF22;
+
   aes128.setKey(key,16);// Setting Key for AES
 
 
@@ -117,11 +115,26 @@ void loop() {
   Serial.println("Reply from server: " + reply);
   unsigned long startTime = millis();
   packetCount=0;
-  packet.gz = 0xEF00;
+  // packet.gz = 0xEF00;
+
+  unsigned long lastSample = 0; // for 50 Hz sampling
+
   for (packetCount = 0; packetCount <20; packetCount += 1){
-    aes128.encryptBlock(cypher,(byte*)&packet);//cypher->output block and packet->input block
-    client.write((uint8_t*)cypher, sizeof(packet)); // 16 bytes
-    packet.gz += 1;
+    //aes128.encryptBlock(cypher,(byte*)&packet);//cypher->output block and packet->input block
+    //client.write((uint8_t*)cypher, sizeof(packet)); // 16 bytes
+
+    // --- Sample MPU at 50 Hz (every 20 ms) ---
+    unsigned long now = millis();
+    if (now - lastSample >= 20) {
+      lastSample = now;
+      // update packet with filtered MPU data
+      packet = mpu.readFilteredPacket(1);
+    }
+
+
+    
+    client.write((uint8_t*)&packet, sizeof(packet)); // 16 bytes
+    // packet.gz += 1;
     delay(100);
   }
 //  while (millis() - startTime < SEND_DURATION){
@@ -132,5 +145,3 @@ void loop() {
   Serial.println(packetCount+1);
   
 }
-
-// put function definitions here:

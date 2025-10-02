@@ -1,130 +1,217 @@
 #import socket 
 from socket import *
+from Crypto.Cipher import AES
 import sys
 import time
+import threading
+import struct
 
-
-PACKET_SIZE = 22 #bytes
+PACKET_SIZE = 16 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
+NUM_CLIENTS = 2 #num of esp 
+
+#encryption data
+key = bytes([
+    0x00, 0x01, 0x02, 0x03,
+    0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0A, 0x0B,
+    0x0C, 0x0D, 0x0E, 0x0F
+])
+cipher = AES.new(key, AES.MODE_ECB)
+
+#threading data
+connectedClients = []   # store client connections
+lock = threading.Lock()
+ultraLock = threading.Lock()
+startSignalSent = False
+startRecevingFromESP = False
+startBarrier = threading.Barrier(NUM_CLIENTS)
+msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
 
 
-def flush_recv(socket):
-  dataSumLen = 0
-  socket.setblocking(False)
-  try:
-    while True:
-        data = socket.recv(1024)
-        dataSumLen += len(data)
-        if not data:
+#def flush_recv(socket):
+#  dataSumLen = 0
+#  socket.setblocking(False)
+#  try:
+#    while True:
+#        data = socket.recv(1024)
+#        dataSumLen += len(data)
+#        if not data:
+#            break
+#  except BlockingIOError:
+#    pass  # no more data available
+#  socket.setblocking(True)
+#  print("num of packets flushed: ", dataSumLen/22)
+#
+#def recv_exact(socket, n):
+#  dataPacket = b''
+#  while len(dataPacket) < n:
+#    currPacket = socket.recv(n - len(dataPacket))
+#    if not currPacket:
+#      raise ConnectionError("Socket is closed")
+#    dataPacket += currPacket
+#  return dataPacket
+
+#broadcast msg to all esp
+def broadcast(message: str):
+    """Send message to all connected clients"""
+    with lock:
+        for c in connectedClients:
+            try:
+                c.sendall((message + "\n").encode())
+            except:
+                pass
+
+def ESP_client(conn, addr, ultraSocket):
+  global startSignalSent
+  global startRecevingFromESP
+  print(f"[NEW CONNECTION] {addr} connected.")
+
+  #handshake
+  message = conn.recv(18) #read upto number of bytes
+  if message == b"HELLO":
+    print(f"received HELLO from firebeetle {addr} ")
+    msg = "ACK"
+    conn.send(msg.encode())
+  else:
+    print('did not receive HELLO')
+
+  with lock:
+      connectedClients.append(conn)
+      # If 4 clients connected, send START once
+      #if len(connectedClients) == NUM_CLIENTS and not startSignalSent:
+      #    print("[INFO] All 4 clients connected. Sending START...")
+      #    broadcast("START")
+      #    startSignalSent = True
+  startBarrier.wait()
+  # Main receive loop
+  while True:
+    try:
+      if not startRecevingFromESP:
+         continue
+      
+      #START RECEIVING DATAAA
+      #start_time = time.time()
+      packetCount = 0
+      buffer = b''
+      while packetCount < NUM_OF_PACKETS:
+        buffer = conn.recv(PACKET_SIZE)
+        if not buffer:
             break
-  except BlockingIOError:
-    pass  # no more data available
-  socket.setblocking(True)
-  print("num of packets flushed: ", dataSumLen/22)
-
-def recv_exact(socket, n):
-  dataPacket = b''
-  while len(dataPacket) < n:
-    currPacket = socket.recv(n - len(dataPacket))
-    if not currPacket:
-      raise ConnectionError("Socket is closed")
-    dataPacket += currPacket
-  return dataPacket
-
-
-#Ultra96 connect
-ultraPort = 8887
-ultraSocket = socket(AF_INET, SOCK_STREAM)
-ultraSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-ultraSocket.bind(('127.0.0.1', ultraPort))
-ultraSocket.listen()
-print('Waiting for Ultra to connect')
-
-ultraSocket, clientAddr = ultraSocket.accept()
-print('ultra has connected')
-#handshake
-message = ultraSocket.recv(10) #read upto number of bytes
-print(message)
-if message == b"HELLO":
-  print('received HELLO from ultra')
-  msg = "ACK"
-  ultraSocket.send(msg.encode())
-else:
-  print('did not receive HELLO from Ultra')
-  sys.exit(1)
-   
-
-#firebeetle connection
-serverPort = 2105
-serverSocket = socket(AF_INET, SOCK_STREAM)
-serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-serverSocket.bind(('0.0.0.0', serverPort))
-serverSocket.listen()
-print('Waiting for firebeetle to connect')
-arduinoSocket, clientAddr = serverSocket.accept()
-print('A firebeetle has connected')
-
-#handshake
-message = arduinoSocket.recv(18) #read upto number of bytes
-print(message)
-if message == b"HELLO":
-  print('received HELLO from firebeetle')
-  msg = "ACK"
-  arduinoSocket.send(msg.encode())
-else:
-  print('did not receive HELLO')
-
-
-#get ready to receive data
-duration = 2.2 #2 seconds
-msg = "action"
-while True:
-  input("press enter to receive msg")
-    #print('inside loop')
-  arduinoSocket.send(msg.encode())
-  ultraSocket.send(msg.encode())
-  start_time = time.time()
-  packetCount = 0
-  buffer = b''
-  while packetCount < NUM_OF_PACKETS:
-    buffer = arduinoSocket.recv(22) #read upto number of bytes
-    #if len(dataPacket) < PACKET_SIZE:
-    #  print("incorrect len of packet")
-    #  continue
-    #buffer += recv_exact(arduinoSocket, PACKET_SIZE)
-    
-    # look for header inside buffer
-    while len(buffer) >= PACKET_SIZE:
-      idx = buffer.find(HEADER)
-      if idx != -1 and len(buffer) >= PACKET_SIZE:
-          # extract aligned packet
-          dataPacket = buffer[idx: idx + PACKET_SIZE]
-          # keep leftover for next call (if streaming)
-          buffer = buffer[idx + PACKET_SIZE:]
-          print(dataPacket.hex())
-          packetCount += 1
-          print(packetCount)
+        print(buffer.hex())
+        dataPacket = cipher.decrypt(buffer)
+        print(dataPacket.hex())
+        packetCount += 1
+        print(packetCount)
+        with ultraLock:
           ultraSocket.send(dataPacket) #send to ultra96
-      else:
-        print("not enough packet or header not found")
-        continue
+
+      msgEndBarrier.wait()
+    except ConnectionResetError:
+        break
+
+  print(f"[DISCONNECTED] {addr}")
+  with lock:
+      if conn in connectedClients:
+          connectedClients.remove(conn)
+  conn.close()
+#def set_up_socket(sock, port, bind):
+#  sock = socket(AF_INET, SOCK_STREAM)
+#  sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+#  sock.bind((bind, port))
+#  sock.listen()
+
+def start_server():
+  global startRecevingFromESP
+  #Ultra96 connect
+  ultraPort = 8887
+  ultraSocket = socket(AF_INET, SOCK_STREAM)
+  ultraSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+  ultraSocket.bind(('127.0.0.1', ultraPort))
+  ultraSocket.listen()
+  print('Waiting for Ultra to connect')
+
+  ultraSocket, ultraAddr = ultraSocket.accept()
+  print('ultra has connected')
+  #handshake
+  message = ultraSocket.recv(10) #read upto number of bytes
+  print(message)
+  if message == b"HELLO":
+    print('received HELLO from ultra')
+    msg = "ACK"
+    ultraSocket.send(msg.encode())
+    #msg = NUM_CLIENTS
+    ultraSocket.send(bytes([NUM_CLIENTS]))
+  else:
+    print('did not receive HELLO from Ultra')
+    sys.exit(1)
     
-    #header, device_id, ax, ay, az, gx, gy, gz, mx, my, mz = struct.unpack("<H H hhh hhh hhh", dataPacket)
 
-    #if header != 0xAA55:
-    #  print("incorrect header! Resync needed")
-    #  continue
-    #print(" ".join(hex(n) for n in dataPacket))
-    #print(dataPacket.hex())
-    #packetCount += 1
-    #print(packetCount)
-  
-  #end of recv for 2s
-  print("time taken: ", time.time() - start_time)
-  #flush_recv(arduinoSocket)
+  #firebeetle connection
+  serverPort = 2105
+  serverSocket = socket(AF_INET, SOCK_STREAM)
+  serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+  serverSocket.bind(('0.0.0.0', serverPort))
+  #serverSocket.bind(('', serverPort))
+  serverSocket.listen()
+  ##print('Waiting for firebeetle to connect')
+  ##arduinoSocket, clientAddr = serverSocket.accept()
+  ##print('A firebeetle has connected')
 
+  ###handshake
+  ##message = arduinoSocket.recv(18) #read upto number of bytes
+  ##print(message)
+  ##if message == b"HELLO":
+  ##  print('received HELLO from firebeetle')
+  ##  msg = "ACK"
+  ##  arduinoSocket.send(msg.encode())
+  ##else:
+  ##  print('did not receive HELLO')
+      # Thread for accepting clients
+        # Thread for accepting clients
+  def accept_clients():
+      while True:
+        if len(connectedClients) < NUM_CLIENTS:
+          conn, addr = serverSocket.accept()
+          thread = threading.Thread(target=ESP_client, args=(conn, addr, ultraSocket), daemon=True)
+          thread.start()
+  threading.Thread(target=accept_clients, daemon=True).start()
 
-  
+  #get ready to receive data
+  msg = "action"
+  while True:
+    if len(connectedClients) < NUM_CLIENTS:
+      continue
+    input("press enter to receive msg")
+    startTime = time.time()
+    startRecevingFromESP = True
+    print(f"[BROADCAST] {msg}")
+    broadcast(msg)
+    ultraSocket.send(msg.encode())
+    msgEndBarrier.wait()
+    startRecevingFromESP = False
+    print("time taken: ", time.time() - startTime)
+  ##  input("press enter to receive msg")
+  ##    #print('inside loop')
+  ##  arduinoSocket.send(msg.encode())
+  ##  ultraSocket.send(msg.encode())
+  ##  start_time = time.time()
+  ##  packetCount = 0
+  ##  buffer = b''
+  ##  while packetCount < NUM_OF_PACKETS:
+  ##    buffer = arduinoSocket.recv(PACKET_SIZE) #read upto number of bytes
+  ##    print(buffer.hex())
+  ##    dataPacket = cipher.decrypt(buffer)
+  ##    print(dataPacket.hex())
+  ##    packetCount += 1
+  ##    print(packetCount)
+  ##    ultraSocket.send(dataPacket) #send to ultra96
 
-connectionSocket.close()
+    
+    #end of recv for 2s
+    #print("time taken: ", time.time() - start_time)
+    #flush_recv(arduinoSocket)
+
+if __name__ == "__main__":
+    start_server()
