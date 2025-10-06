@@ -3,6 +3,9 @@ from scipy.stats import skew
 import numpy as np
 import time
 import logging
+from socket import *
+import struct
+import sys
 
 # To be updated
 DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
@@ -50,6 +53,32 @@ logger.info("Input buffer allocated with shape %s", input_buffer.shape)
 logger.info("Output buffer allocated with shape %s", output_buffer.shape)
 
 
+###COMMS SET UP :)###
+PACKET_SIZE = 16 #bytes
+NUM_OF_PACKETS = 20 #expected num of packets per action
+HEADER = b'\x55\xAA'   # little-endian of 0xAA55
+
+ultraName = 'localhost'
+ultraPort = 8887 
+
+ultraSocket = socket(AF_INET, SOCK_STREAM)
+print("trying to connect to server")
+ultraSocket.connect((ultraName, ultraPort))
+print("Successfully connected to server")
+message = "HELLO"
+ultraSocket.send(message.encode())
+receivedMsg = ultraSocket.recv(3)
+if receivedMsg == b"ACK":
+  print('received ACK from Laptop')
+else:
+  print('did not receive ACK from Laptop')
+  sys.exit(1)
+
+data = ultraSocket.recv(1)  # 4 bytes for unsigned int
+numESPs = data[0]
+print("Number of ESPs:", numESPs)
+
+
 def extract_features(input):
     features = []
     for i in range(NUM_DATA):
@@ -76,7 +105,7 @@ def get_model_output(data_window):
 
     # Prepare input data
     if MODEL_TYPE == "Simplified MLP":
-        input = extract_features(np.array(data_window))
+        input = np.array(data_window).flatten()
     elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
         input = np.array(data_window, dtype=np.int32).flatten()
     elif MODEL_TYPE == "CNN":
@@ -107,8 +136,6 @@ def main():
         nonlocal data_window
         logger.info("Received new input data")
 
-        # TODO: Pre-processing by identifier
-        
         start_time = time.time()
         pred_logits = get_model_output(data_window)
         pred_class = int(np.argmax(pred_logits))
@@ -122,12 +149,49 @@ def main():
         return pred_class
     
     while True:
-        print("Comms code not yet here")
-        return
-        
-        # TODO: Receive data
+        receivedMsg = ultraSocket.recv(1)
+        if receivedMsg != b"a":
+            continue
+        startTime= time.time()
+        packetCount = 0
+        buffer = b''    
+        data_window = []
+        buckets = [[] for _ in range(NUM_SENSORS)]
+
+        while packetCount < (NUM_OF_PACKETS * numESPs):
+            buffer = ultraSocket.recv(PACKET_SIZE) #read upto number of bytes
+            while len(buffer) >= PACKET_SIZE:
+                idx = buffer.find(HEADER)
+                if idx != -1 and len(buffer) >= PACKET_SIZE:
+                    # extract aligned packet
+                    dataPacket = buffer[idx: idx + PACKET_SIZE]
+                    # keep leftover for next call (if streaming)
+                    buffer = buffer[idx + PACKET_SIZE:]
+                    print(dataPacket.hex())
+                    packetCount += 1
+                    print(packetCount)
+                else:
+                    print("not enough packet or header not found")
+                    continue
+            
+            header, device_id, ax, ay, az, gx, gy, gz = struct.unpack("<H H hhh hhh", dataPacket)
+            buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
+
+            if header != 0xAA55:
+              print("incorrect header! Resync needed")
+              continue
+
+        #Received all packets of data
+        print("time taken: ", time.time() - startTime)
+        # Form data_window
+        if MODEL_TYPE == "Simplified MLP":
+            data_window = [extract_features(np.array(bucket)).tolist() for bucket in buckets]
+        else:
+            data_window = [row for bucket in buckets for row in bucket]
         
         pred_class = classify_action()
+        print("debug")
+        ultraSocket.send(bytes([pred_class]))
 
 
 if __name__ == "__main__":

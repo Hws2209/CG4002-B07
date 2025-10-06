@@ -6,10 +6,13 @@ import time
 import threading
 import struct
 
+sys.path.append("./../Interface")  # relative to where you run Laptop.py
+from cli import *
+
 PACKET_SIZE = 16 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
-NUM_CLIENTS = 2 #num of esp 
+NUM_CLIENTS = 1 #num of esp 
 
 #encryption data
 key = bytes([
@@ -28,30 +31,6 @@ startSignalSent = False
 startRecevingFromESP = False
 startBarrier = threading.Barrier(NUM_CLIENTS)
 msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
-
-
-#def flush_recv(socket):
-#  dataSumLen = 0
-#  socket.setblocking(False)
-#  try:
-#    while True:
-#        data = socket.recv(1024)
-#        dataSumLen += len(data)
-#        if not data:
-#            break
-#  except BlockingIOError:
-#    pass  # no more data available
-#  socket.setblocking(True)
-#  print("num of packets flushed: ", dataSumLen/22)
-#
-#def recv_exact(socket, n):
-#  dataPacket = b''
-#  while len(dataPacket) < n:
-#    currPacket = socket.recv(n - len(dataPacket))
-#    if not currPacket:
-#      raise ConnectionError("Socket is closed")
-#    dataPacket += currPacket
-#  return dataPacket
 
 #broadcast msg to all esp
 def broadcast(message: str):
@@ -100,7 +79,8 @@ def ESP_client(conn, addr, ultraSocket):
         if not buffer:
             break
         print(buffer.hex())
-        dataPacket = cipher.decrypt(buffer)
+        #dataPacket = cipher.decrypt(buffer)
+        dataPacket = buffer
         print(dataPacket.hex())
         packetCount += 1
         print(packetCount)
@@ -179,11 +159,26 @@ def start_server():
   threading.Thread(target=accept_clients, daemon=True).start()
 
   #get ready to receive data
-  msg = "action"
+  #msg = "action"
+  msg = "a"
+  high_score = load_high_score()
+  while len(connectedClients) < NUM_CLIENTS:
+    continue 
+  print(f"High score: {high_score}")
+  current_score = 0
   while True:
-    if len(connectedClients) < NUM_CLIENTS:
-      continue
+    #if len(connectedClients) < NUM_CLIENTS:
+    #  continue
     input("press enter to receive msg")
+
+    expected_class = random.randint(0, 3)
+    # Play audio file
+    audio_file = f"./../Interface/audio/{expected_class}.wav"
+    if os.path.exists(audio_file):
+        play_audio(audio_file)
+    else:
+        print(f"(Audio file {audio_file} missing — skipping sound)")
+
     startTime = time.time()
     startRecevingFromESP = True
     print(f"[BROADCAST] {msg}")
@@ -192,6 +187,21 @@ def start_server():
     msgEndBarrier.wait()
     startRecevingFromESP = False
     print("time taken: ", time.time() - startTime)
+    data = ultraSocket.recv(1)  # 4 bytes for unsigned int
+    predicted_class = data[0]
+    print("Expected Action:", expected_class)
+    print("Action Detected:", predicted_class)
+    if predicted_class == expected_class:
+        current_score += 1
+        print(f"Correct! Current score: {current_score}")
+    else:
+        print("\nGame over!")
+        print(f"Final score: {current_score}")
+        if current_score > high_score:
+            high_score = current_score
+            save_high_score(high_score)
+        print(f"High score: {high_score}")
+        current_score = 0
   ##  input("press enter to receive msg")
   ##    #print('inside loop')
   ##  arduinoSocket.send(msg.encode())

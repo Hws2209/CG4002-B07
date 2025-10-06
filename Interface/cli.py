@@ -1,13 +1,19 @@
 import os
 import random
 import time
-import winsound
+import pygame
 
 HIGH_SCORE_FILE = "high_score.txt"
 
 
 def play_audio(file):
-    winsound.PlaySound(file, winsound.SND_FILENAME)
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    pygame.mixer.music.load(file)  # compressed WAV works
+    pygame.mixer.music.play()
+
+    while pygame.mixer.music.get_busy():
+        pygame.time.Clock().tick(10)
 
 def load_high_score():
     if not os.path.exists(HIGH_SCORE_FILE):
@@ -31,7 +37,7 @@ def play_game(high_score):
         expected_class = random.randint(0, 15)
 
         # Play audio file
-        audio_file = f"audio/{expected_class}.wav"
+        audio_file = f"./../Interface/audio/{expected_class}.wav"
         if os.path.exists(audio_file):
             play_audio(audio_file)
         else:

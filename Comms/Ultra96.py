@@ -1,7 +1,6 @@
 from socket import *
 import sys
 import time
-import struct
 
 PACKET_SIZE = 16 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action

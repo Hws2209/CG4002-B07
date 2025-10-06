@@ -44,6 +44,7 @@ MPU mpu;
 
 void setup() {
   Serial.begin(115200);
+  mpu.begin();
   Serial.print("Testingg");
 
   WiFi.begin(ssid, password);
