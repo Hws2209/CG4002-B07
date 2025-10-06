@@ -2,6 +2,7 @@ from pynq import Overlay, allocate, PL
 from scipy.stats import skew
 import numpy as np
 import time
+import logging
 
 # To be updated
 DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
@@ -20,15 +21,33 @@ NUM_SENSORS = 1 # To be updated
 NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
 
 
+logger = logging.getLogger("ai_engine")
+logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s",
+                              datefmt="%Y-%m-%d %H:%M:%S")
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+
 PL.reset() # Reset the programmable logic
+logger.info("Programmable Logic has been reset.")
+
 ol = Overlay('design_1.bit') # Loads the FPGA bitstream
+logger.info("Overlay loaded: %s", ol)
+
 dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
+logger.info("DMA object: %s", dma)
 
 if MODEL_TYPE == "Simplified MLP":
     input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
 else:
     input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
 output_buffer = allocate(shape=(NUM_CLASSES,), dtype=np.float32) # To store output logit from FPGA
+
+logger.info("Input buffer allocated with shape %s", input_buffer.shape)
+logger.info("Output buffer allocated with shape %s", output_buffer.shape)
 
 
 def extract_features(input):
@@ -53,6 +72,7 @@ def extract_features(input):
 
 def get_model_output(data_window):
     global input_buffer, output_buffer, dma, DATA_LABELS
+    logger.info("Preparing input buffer.")
 
     # Prepare input data
     if MODEL_TYPE == "Simplified MLP":
@@ -67,10 +87,12 @@ def get_model_output(data_window):
     np.copyto(input_buffer, input)
 
     try:
+        logger.info("Starting DMA send transfer.")
         dma.sendchannel.transfer(input_buffer)
         dma.recvchannel.transfer(output_buffer)
         dma.sendchannel.wait()
         dma.recvchannel.wait()
+        logger.info("DMA receive completed.")
 
         return output_buffer.copy()
     except RuntimeError as e:
@@ -92,12 +114,16 @@ def main():
 
     def classify_action():
         nonlocal sample_count, num_failures, num_logit_mismatches, total_compute_time, data_window
+        logger.info("Received new input data")
 
         # TODO: Pre-processing by identifier
         
         start_time = time.time()
         pred_logits = get_model_output(data_window)
         pred_class = int(np.argmax(pred_logits))
+
+        logger.info("Prediction logits: %s", pred_logits)
+        logger.info("Predicted class: %s", DATA_LABELS[pred_class])
 
         end_time = time.time()
         total_compute_time += (end_time - start_time)
@@ -121,9 +147,6 @@ def main():
         if not interactive_mode:
             return True
         
-        action = DATA_LABELS[pred_class] # Get name of class
-        print(f"Action: {action}")
-
         continue_signal = input("Continue? Y/N: ")
         return continue_signal.upper() == "Y"
     
