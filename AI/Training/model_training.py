@@ -15,6 +15,8 @@ MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
 NUM_CLASSES = len(DATA_LABELS)
 NUM_DATA = 6
+WINDOW_SIZE = 20
+NUM_SENSORS = 1 # To be updated
 
 DATA = "SimpleData"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
@@ -23,10 +25,6 @@ EXPORT_FOLDER_NAME = f"Export ({DATA})"
 SEED = 42
 NUM_EPOCHS = 20
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-SAMPLING_RATE = 10
-TIME_LIMIT = 2
-WINDOW_SIZE = SAMPLING_RATE * TIME_LIMIT
 
 NUM_DUMMY_PER_LABEL = 100 # For dummy data generation
 
@@ -70,7 +68,7 @@ def extract_features(matrix):
     return np.array(features, dtype=np.float32)
 
 
-def import_data(data_file, label_file, lines_per_matrix):
+def import_data(data_file, label_file, lines_per_matrix): # TODO: Pre-processing by identifiers
     with open(label_file, "r") as f:
         labels_numeric = [int(line.strip()) for line in f if line.strip()]
 

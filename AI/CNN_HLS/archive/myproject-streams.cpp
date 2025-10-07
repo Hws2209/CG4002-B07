@@ -10,7 +10,7 @@
 #include "headers/fc2_bias.h"
 
 #define NUM_CHANNELS 6
-#define SEQ_LEN 20 // WINDOW_SIZE
+#define SEQ_LEN 20 // WINDOW_SIZE * NUM_SENSORS
 #define CONV1_OUT 6
 #define CONV2_OUT 3
 #define KERNEL_SIZE 3

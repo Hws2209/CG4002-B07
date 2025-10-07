@@ -14,13 +14,10 @@ NUM_CLASSES = len(DATA_LABELS)
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
 NUM_FEATURES = 8
-
-SAMPLING_RATE = 10
-TIME_LIMIT = 2
-WINDOW_SIZE = SAMPLING_RATE * TIME_LIMIT
-
+WINDOW_SIZE = 20
 NUM_DATA = 6
 NUM_SENSORS = 1 # To be updated
+
 NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
 
 
@@ -99,24 +96,13 @@ def extract_features(input):
     return np.array(features, dtype=np.float32)
 
 
-def get_model_output(data_window):
+def get_model_output(input_array):
     global input_buffer, output_buffer, dma, DATA_LABELS
-    logger.info("Preparing input buffer.")
-
-    # Prepare input data
-    if MODEL_TYPE == "Simplified MLP":
-        input = np.array(data_window).flatten()
-    elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-        input = np.array(data_window, dtype=np.int32).flatten()
-    elif MODEL_TYPE == "CNN":
-        input = np.array(data_window, dtype=np.int32).T.flatten()
-    else:
-        raise ValueError("Invalid MODEL_TYPE")
-
-    np.copyto(input_buffer, input)
+    logger.info("Preparing input buffer...")
+    np.copyto(input_buffer, input_array)
 
     try:
-        logger.info("Starting DMA send transfer.")
+        logger.info("Starting DMA send transfer...")
         dma.sendchannel.transfer(input_buffer)
         dma.recvchannel.transfer(output_buffer)
         dma.sendchannel.wait()
@@ -129,33 +115,27 @@ def get_model_output(data_window):
         print("Error config:\n", dma.register_map)
 
 
+def classify_action(input_array):
+    start_time = time.time()
+    pred_logits = get_model_output(input_array)
+    pred_class = int(np.argmax(pred_logits))
+    end_time = time.time()
+
+    logger.info("Prediction logits: %s", pred_logits)
+    logger.info("Predicted class: %s", DATA_LABELS[pred_class])
+    logger.info("Time taken for dma + model: %s", end_time - start_time)
+
+    return pred_class
+
+
 def main():
-    data_window = []
-
-    def classify_action():
-        nonlocal data_window
-        logger.info("Received new input data")
-
-        start_time = time.time()
-        pred_logits = get_model_output(data_window)
-        pred_class = int(np.argmax(pred_logits))
-        end_time = time.time()
-
-        logger.info("Prediction logits: %s", pred_logits)
-        logger.info("Predicted class: %s", DATA_LABELS[pred_class])
-        logger.info("Time taken: %s", end_time - start_time)
-
-        data_window.clear()
-        return pred_class
-    
     while True:
         receivedMsg = ultraSocket.recv(1)
         if receivedMsg != b"a":
             continue
         startTime= time.time()
         packetCount = 0
-        buffer = b''    
-        data_window = []
+        buffer = b''
         buckets = [[] for _ in range(NUM_SENSORS)]
 
         while packetCount < (NUM_OF_PACKETS * numESPs):
@@ -181,16 +161,21 @@ def main():
               print("incorrect header! Resync needed")
               continue
 
-        #Received all packets of data
+        # Received all packets of data
         print("time taken: ", time.time() - startTime)
-        # Form data_window
-        if MODEL_TYPE == "Simplified MLP":
-            data_window = [extract_features(np.array(bucket)).tolist() for bucket in buckets]
-        else:
-            data_window = [row for bucket in buckets for row in bucket]
+        logger.info("Received new set of input data. Preprocessing...")
         
-        pred_class = classify_action()
-        print("debug")
+        # Form input_array
+        if MODEL_TYPE == "Simplified MLP":
+            input_array = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
+        elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
+            input_array = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
+        elif MODEL_TYPE == "CNN":
+            input_array = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
+        else:
+            raise ValueError("Invalid MODEL_TYPE")
+        
+        pred_class = classify_action(input_array)
         ultraSocket.send(bytes([pred_class]))
 
 

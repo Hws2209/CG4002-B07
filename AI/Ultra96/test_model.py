@@ -11,13 +11,10 @@ NUM_CLASSES = len(DATA_LABELS)
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
 NUM_FEATURES = 8
-
-SAMPLING_RATE = 10
-TIME_LIMIT = 2
-WINDOW_SIZE = SAMPLING_RATE * TIME_LIMIT
-
+WINDOW_SIZE = 20
 NUM_DATA = 6
 NUM_SENSORS = 1 # To be updated
+
 NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
 
 
@@ -70,24 +67,13 @@ def extract_features(input):
     return np.array(features, dtype=np.float32)
 
 
-def get_model_output(data_window):
+def get_model_output(input_array):
     global input_buffer, output_buffer, dma, DATA_LABELS
-    logger.info("Preparing input buffer.")
-
-    # Prepare input data
-    if MODEL_TYPE == "Simplified MLP":
-        input = extract_features(np.array(data_window))
-    elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-        input = np.array(data_window, dtype=np.int32).flatten()
-    elif MODEL_TYPE == "CNN":
-        input = np.array(data_window, dtype=np.int32).T.flatten()
-    else:
-        raise ValueError("Invalid MODEL_TYPE")
-
-    np.copyto(input_buffer, input)
+    logger.info("Preparing input buffer...")
+    np.copyto(input_buffer, input_array)
 
     try:
-        logger.info("Starting DMA send transfer.")
+        logger.info("Starting DMA send transfer...")
         dma.sendchannel.transfer(input_buffer)
         dma.recvchannel.transfer(output_buffer)
         dma.sendchannel.wait()
@@ -101,7 +87,7 @@ def get_model_output(data_window):
 
 
 def main():
-    data_window = []
+    buckets = [[] for _ in range(NUM_SENSORS)]
     golden_logits_matrix = np.loadtxt("golden_logits.txt", dtype=np.float32) # Output from testing on laptop
 
     sample_count = 0
@@ -113,13 +99,21 @@ def main():
     interactive_mode = interactive_input.upper() == "Y"
 
     def classify_action():
-        nonlocal sample_count, num_failures, num_logit_mismatches, total_compute_time, data_window
+        nonlocal sample_count, num_failures, num_logit_mismatches, total_compute_time, buckets
         logger.info("Received new input data")
 
-        # TODO: Pre-processing by identifier
+        # Form input_array
+        if MODEL_TYPE == "Simplified MLP":
+            input_array = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
+        elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
+            input_array = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
+        elif MODEL_TYPE == "CNN":
+            input_array = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
+        else:
+            raise ValueError("Invalid MODEL_TYPE")
         
         start_time = time.time()
-        pred_logits = get_model_output(data_window)
+        pred_logits = get_model_output(input_array)
         pred_class = int(np.argmax(pred_logits))
 
         logger.info("Prediction logits: %s", pred_logits)
@@ -138,7 +132,7 @@ def main():
         if np.any(np.abs(pred_logits - golden_logits) > 0.01):
             num_logit_mismatches += 1
 
-        data_window.clear()
+        buckets = [[] for _ in range(NUM_SENSORS)]
         sample_count += 1
 
         if sample_count % 50 == 0:
@@ -154,13 +148,21 @@ def main():
         for line in f:
             line = line.strip()
             if not line: # Empty line indicates end of a matrix
-                if data_window:
+                if any(buckets):
                     if not classify_action():
                         break
                 continue
             else:
-                data_window.append([int(x) for x in line.split(" ")])
-        if data_window: # Handle last matrix if file does not end with empty line
+                # OLD Data Format, To be removed
+                buckets[0].append([int(x) for x in line.split(" ")])
+
+                # TODO: NEW Data Format
+                # line_values = [int(x) for x in line.split(" ")]
+                # device_id = line_values[0]
+                # sensor_values = line_values[1:]
+                # buckets[device_id - 1].append(sensor_values)
+                
+        if any(buckets): # Handle last matrix if file does not end with empty line
             classify_action()
 
     # Print summary
