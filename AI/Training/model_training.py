@@ -4,8 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset, random_split
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 from scipy.stats import skew
 import json
 import optuna
@@ -42,7 +41,7 @@ def generate_dummy_data(data_file, label_file):
             for _ in range(NUM_DUMMY_PER_LABEL):
                 lf.write(str(label_index) + "\n")
 
-                matrix = np.random.randint(1000 * label_index, 1000 * (label_index + 1), size=(WINDOW_SIZE, NUM_DATA))
+                matrix = np.random.randint(1000 * label_index, 1000 * (label_index + 1), size=(WINDOW_SIZE * NUM_SENSORS, NUM_DATA))
                 for row in matrix:
                     df.write(" ".join(map(str, row)) + "\n")
                 df.write("\n")
@@ -362,7 +361,7 @@ def main():
             generate_dummy_data(data_file, label_file)
 
     # Prepare data
-    X_tensor, y_tensor = import_data(data_file, label_file, WINDOW_SIZE)
+    X_tensor, y_tensor = import_data(data_file, label_file, WINDOW_SIZE * NUM_SENSORS)
     dataset = TensorDataset(X_tensor, y_tensor)
     num_samples = len(dataset)
 
@@ -443,10 +442,6 @@ def main():
     # Confusion Matrix
     cm = confusion_matrix(all_labels, all_preds)
     print(cm)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot(cmap=plt.cm.Blues)
-    plt.title(f"{MODEL_TYPE} Confusion Matrix")
-    plt.show()
 
     # Export
     should_export = input("Export? Y/N: ")
