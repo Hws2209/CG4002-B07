@@ -6,6 +6,7 @@ import logging
 from socket import *
 import struct
 import sys
+from Crypto.Cipher import AES
 
 # To be updated
 DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
@@ -51,9 +52,17 @@ logger.info("Output buffer allocated with shape %s", output_buffer.shape)
 
 
 ###COMMS SET UP :)###
-PACKET_SIZE = 16 #bytes
+PACKET_SIZE = 20 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
+
+key = bytes([
+    0x00, 0x01, 0x02, 0x03,
+    0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0A, 0x0B,
+    0x0C, 0x0D, 0x0E, 0x0F
+])
+cipher = AES.new(key, AES.MODE_ECB)
 
 ultraName = 'localhost'
 ultraPort = 8887 
@@ -74,6 +83,7 @@ else:
 data = ultraSocket.recv(1)  # 4 bytes for unsigned int
 numESPs = data[0]
 print("Number of ESPs:", numESPs)
+#######################################COMMS#################
 
 
 def extract_features(input):
@@ -147,19 +157,29 @@ def main():
                     dataPacket = buffer[idx: idx + PACKET_SIZE]
                     # keep leftover for next call (if streaming)
                     buffer = buffer[idx + PACKET_SIZE:]
+                    header, device_id = struct.unpack("<H H", dataPacket[:4])
+                    print(header, device_id)
+
+                    if header != 0xAA55:
+                        print("incorrect header! Resync needed")
+                        packetCount += 1
+                        continue
+
                     print(dataPacket.hex())
                     packetCount += 1
                     print(packetCount)
+
+                    encryptedPayload = dataPacket[4:]
+                    decryptedPayload = cipher.decrypt(encryptedPayload)
+                    ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhhI", decryptedPayload)
+                    print(ax, ay, az, gx, gy, gz, padding)
+                    buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
+
+
                 else:
                     print("not enough packet or header not found")
                     continue
             
-            header, device_id, ax, ay, az, gx, gy, gz = struct.unpack("<H H hhh hhh", dataPacket)
-            buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
-
-            if header != 0xAA55:
-              print("incorrect header! Resync needed")
-              continue
 
         # Received all packets of data
         print("time taken: ", time.time() - startTime)

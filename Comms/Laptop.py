@@ -9,7 +9,7 @@ import struct
 sys.path.append("./../Interface")  # relative to where you run Laptop.py
 from cli import *
 
-PACKET_SIZE = 16 #bytes
+PACKET_SIZE = 20 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 NUM_CLIENTS = 1 #num of esp 
@@ -173,11 +173,11 @@ def start_server():
 
     expected_class = random.randint(0, 3)
     # Play audio file
-    audio_file = f"./../Interface/audio/{expected_class}.wav"
-    if os.path.exists(audio_file):
-        play_audio(audio_file)
-    else:
-        print(f"(Audio file {audio_file} missing — skipping sound)")
+    #audio_file = f"./../Interface/audio/{expected_class}.wav"
+    #if os.path.exists(audio_file):
+    #    play_audio(audio_file)
+    #else:
+    #    print(f"(Audio file {audio_file} missing — skipping sound)")
 
     startTime = time.time()
     startRecevingFromESP = True

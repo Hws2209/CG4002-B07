@@ -25,6 +25,7 @@ struct SensorPacket {
   uint16_t device_id;
   int16_t ax, ay, az;
   int16_t gx, gy, gz;
+  int32_t padding;
 };
 
 class MPU {
