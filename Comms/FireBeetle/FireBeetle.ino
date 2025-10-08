@@ -91,12 +91,12 @@ void setup() {
 
   //test only, hardcode sensor value
   packet.header = 0xAA55;
-  packet.ax = 0xAB01;
-  packet.ay = 0xCD10;
-  packet.az = 0xEF11;
-  packet.gx = 0xAB02;
-  packet.gy = 0xCD20;
-  packet.gz = 0xEF22;
+  //packet.ax = 0xAB01;
+  //packet.ay = 0xCD10;
+  //packet.az = 0xEF11;
+  //packet.gx = 0xAB02;
+  //packet.gy = 0xCD20;
+  //packet.gz = 0xEF22;
   packet.device_id= DEVICE_ID;
   packet.padding = 0;
   aes128.setKey(key,16);// Setting Key for AES
@@ -116,35 +116,22 @@ void loop() {
 //  packet.gz = 0xEF00;
   unsigned long lastSample = 0; // for 50 Hz sampling
   unsigned long lastSend = 0; // for 10 Hz sending
-  SensorPacket testPacket;
-  testPacket.header = 0xAA55;
-  testPacket.device_id= DEVICE_ID;
-  testPacket.padding = 0;
-
 
   while (packetCount <20){
     unsigned long now = millis();
-   //// if (now - lastSample >= 20) {
-   ////   lastSample = now;
-   ////   // update packet with filtered MPU data
-   ////   packet = mpu.readFilteredPacket(1);
-   //// }
-   //// 
-   ////   // --- Send at 10 Hz (every 100 ms) ---
-   //// if (now - lastSend >= 100) {
-   ////   lastSend = now;
-   ////   client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet
-   ////   packetCount+=1;
-   //// }
-
-   //testing enxcryption
+    if (now - lastSample >= 20) {
+      lastSample = now;
+      // update packet with filtered MPU data
+      packet = mpu.readFilteredPacket(1);
+    }
+    
+      // --- Send at 10 Hz (every 100 ms) ---
     if (now - lastSend >= 100) {
-      aes128.encryptBlock(cypher,(byte*)&(packet.ax));//cypher->output block and packet->input block
-      memcpy((byte*)&(testPacket.ax), cypher, 16);
       lastSend = now;
-      client.write((uint8_t*)&testPacket, sizeof(packet)); // send most recent packet
+      aes128.encryptBlock(cypher,(byte*)&(packet.ax));//cypher->output block and packet->input block
+      memcpy((byte*)&(packet.ax), cypher, 16);
+      client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet
       packetCount+=1;
-      packet.gz += 1;
     }
   }
   Serial.print("Number of packets sent: ");
