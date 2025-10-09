@@ -1,32 +1,142 @@
+#import socket 
 from socket import *
+from Crypto.Cipher import AES
 import sys
+import time
+import threading
+import struct
 
-ultraPort = 8887
-ultraSocket = socket(AF_INET, SOCK_STREAM)
-ultraSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-ultraSocket.bind(('127.0.0.1', ultraPort))
-#ultraSocket.bind(('', ultraPort))
-ultraSocket.listen()
-print('Waiting for Ultra to connect')
+sys.path.append("./../Interface")  # relative to where you run Laptop.py
+from cli import *
 
-connectionUltraSocket, clientAddr = ultraSocket.accept()
-print('Ultra has connected')
-#handshake
-message = connectionUltraSocket.recv(10) #read upto number of bytes
-print(message)
-if message == b"HELLO":
-  print('received HELLO from Ultra')
-  msg = "ACK"
-  connectionUltraSocket.send(msg.encode())
-else:
-  print('did not receive HELLO from Ultra')
-  sys.exit(1)
-   
+PACKET_SIZE = 20 #bytes
+NUM_OF_PACKETS = 20 #expected num of packets per action
+HEADER = b'\x55\xAA'   # little-endian of 0xAA55
+NUM_CLIENTS = 1 #num of esp 
 
-while True:
-    message = connectionUltraSocket.recv(2048)
-    print("received message: ", message)
+#encryption data
+key = bytes([
+    0x00, 0x01, 0x02, 0x03,
+    0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0A, 0x0B,
+    0x0C, 0x0D, 0x0E, 0x0F
+])
+cipher = AES.new(key, AES.MODE_ECB)
 
-    connectionUltraSocket.send(message)
+#threading data
+connectedClients = []   # store client connections
+lock = threading.Lock()
+ultraLock = threading.Lock()
+startSignalSent = False
+startRecevingFromESP = False
+startBarrier = threading.Barrier(NUM_CLIENTS)
+msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
 
-connectionSocket.close()
+#broadcast msg to all esp
+def broadcast(message: str):
+    """Send message to all connected clients"""
+    with lock:
+        for c in connectedClients:
+            try:
+                c.sendall((message + "\n").encode())
+            except:
+                pass
+
+def ESP_client(conn, addr):
+  global startSignalSent
+  global startRecevingFromESP
+  print(f"[NEW CONNECTION] {addr} connected.")
+
+  #handshake
+  message = conn.recv(18) #read upto number of bytes
+  if message == b"HELLO":
+    print(f"received HELLO from firebeetle {addr} ")
+    msg = "ACK"
+    conn.send(msg.encode())
+  else:
+    print('did not receive HELLO')
+
+  with lock:
+      connectedClients.append(conn)
+  startBarrier.wait()
+  # Main receive loop
+  while True:
+    try:
+      if not startRecevingFromESP:
+         continue
+      
+      #START RECEIVING DATAAA
+      #start_time = time.time()
+      packetCount = 0
+      buffer = b''
+      while packetCount < NUM_OF_PACKETS:
+        buffer = conn.recv(PACKET_SIZE)
+        if not buffer:
+            break
+        print(buffer.hex())
+        #dataPacket = cipher.decrypt(buffer)
+        dataPacket = buffer
+        print(dataPacket.hex())
+        header, device_id = struct.unpack("<H H", dataPacket[:4])
+        encryptedPayload = dataPacket[4:]
+        decryptedPayload = cipher.decrypt(encryptedPayload)
+        ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhhI", decryptedPayload)
+        ####FOR WANSING
+        print(ax, ay, az, gx, gy, gz, padding)
+        print(header, device_id)
+        packetCount += 1
+        print(packetCount)
+
+      msgEndBarrier.wait()
+    except ConnectionResetError:
+        break
+
+  print(f"[DISCONNECTED] {addr}")
+  with lock:
+      if conn in connectedClients:
+          connectedClients.remove(conn)
+  conn.close()
+#def set_up_socket(sock, port, bind):
+#  sock = socket(AF_INET, SOCK_STREAM)
+#  sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+#  sock.bind((bind, port))
+#  sock.listen()
+
+def start_server():
+  global startRecevingFromESP
+    
+
+  #firebeetle connection
+  serverPort = 2105
+  serverSocket = socket(AF_INET, SOCK_STREAM)
+  serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+  serverSocket.bind(('0.0.0.0', serverPort))
+  serverSocket.listen()
+
+
+  def accept_clients():
+      while True:
+        if len(connectedClients) < NUM_CLIENTS:
+          conn, addr = serverSocket.accept()
+          thread = threading.Thread(target=ESP_client, args=(conn, addr), daemon=True)
+          thread.start()
+  threading.Thread(target=accept_clients, daemon=True).start()
+
+  #get ready to receive data
+  #msg = "action"
+  msg = "a"
+  while len(connectedClients) < NUM_CLIENTS:
+    continue 
+  while True:
+    input("press enter to receive msg")
+
+    startTime = time.time()
+    startRecevingFromESP = True
+    print(f"[BROADCAST] {msg}")
+    broadcast(msg)
+    msgEndBarrier.wait()
+    startRecevingFromESP = False
+    print("time taken: ", time.time() - startTime)
+
+if __name__ == "__main__":
+    start_server()

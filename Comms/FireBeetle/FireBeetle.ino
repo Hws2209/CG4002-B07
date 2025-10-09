@@ -128,6 +128,7 @@ void loop() {
       // --- Send at 10 Hz (every 100 ms) ---
     if (now - lastSend >= 100) {
       lastSend = now;
+      packet.padding = 0;
       aes128.encryptBlock(cypher,(byte*)&(packet.ax));//cypher->output block and packet->input block
       memcpy((byte*)&(packet.ax), cypher, 16);
       client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet

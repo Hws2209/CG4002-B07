@@ -173,11 +173,11 @@ def start_server():
 
     expected_class = random.randint(0, 3)
     # Play audio file
-    #audio_file = f"./../Interface/audio/{expected_class}.wav"
-    #if os.path.exists(audio_file):
-    #    play_audio(audio_file)
-    #else:
-    #    print(f"(Audio file {audio_file} missing — skipping sound)")
+    audio_file = f"./../Interface/audio/{expected_class}.wav"
+    if os.path.exists(audio_file):
+        play_audio(audio_file)
+    else:
+        print(f"(Audio file {audio_file} missing — skipping sound)")
 
     startTime = time.time()
     startRecevingFromESP = True
