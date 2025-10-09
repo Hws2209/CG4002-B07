@@ -67,7 +67,60 @@ def extract_features(matrix):
     return np.array(features, dtype=np.float32)
 
 
-def import_data(data_file, label_file, lines_per_matrix): # TODO: Pre-processing by identifiers
+def preprocess(buckets):
+    if MODEL_TYPE == "Simplified MLP":
+        # Size = (NUM_FEATURES * NUM_DATA * NUM_SENSORS)
+        matrix = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
+    elif MODEL_TYPE == "MLP":
+        # Size = (WINDOW_SIZE * NUM_DATA * NUM_SENSORS)
+        matrix = np.concatenate(buckets, axis=0).ravel().astype(np.float32)
+    elif MODEL_TYPE == "RNN":
+        # Size = (WINDOW_SIZE * NUM_SENSORS, NUM_DATA)
+        matrix = np.concatenate(buckets, axis=0).astype(np.float32)
+    elif MODEL_TYPE == "CNN":
+        # Size = (NUM_DATA, WINDOW_SIZE * NUM_SENSORS)
+        matrix = np.concatenate(buckets, axis=0).T.astype(np.float32)
+    else:
+        raise ValueError("Invalid MODEL_TYPE")
+
+    return matrix
+
+
+def import_data_with_id(data_file, label_file, lines_per_matrix):
+    with open(label_file, "r") as f:
+        labels_numeric = [int(line.strip()) for line in f if line.strip()]
+
+    matrices = []
+    buckets = [[] for _ in range(NUM_SENSORS)]
+
+    with open(data_file, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line: # Empty line indicates end of a matrix
+                if any(buckets):
+                    assert sum(len(bucket) for bucket in buckets) == lines_per_matrix, "Matrix line count mismatch"
+                    matrices.append(preprocess(buckets))
+                    buckets = [[] for _ in range(NUM_SENSORS)]
+            else:
+                line_values = [int(x) for x in line.split(" ")]
+                device_id = line_values[0]
+                sensor_values = line_values[1:]
+                buckets[device_id - 1].append(sensor_values)
+        # Add last matrix if file does not end with empty line
+        if any(buckets):
+            assert sum(len(bucket) for bucket in buckets) == lines_per_matrix, "Matrix line count mismatch"
+            matrices.append(preprocess(buckets))
+
+    # Check consistency
+    assert len(matrices) == len(labels_numeric), "Number of matrices and labels mismatch"
+
+    X_tensor = torch.tensor(np.array(matrices, dtype=np.float32), dtype=torch.float32)
+    y_tensor = torch.tensor(np.array(labels_numeric, dtype=np.int64), dtype=torch.long)
+
+    return X_tensor, y_tensor
+
+
+def import_data(data_file, label_file, lines_per_matrix):
     with open(label_file, "r") as f:
         labels_numeric = [int(line.strip()) for line in f if line.strip()]
 
@@ -361,7 +414,7 @@ def main():
             generate_dummy_data(data_file, label_file)
 
     # Prepare data
-    X_tensor, y_tensor = import_data(data_file, label_file, WINDOW_SIZE * NUM_SENSORS)
+    X_tensor, y_tensor = import_data(data_file, label_file, WINDOW_SIZE * NUM_SENSORS) # TODO: To replace with import_data_with_id
     dataset = TensorDataset(X_tensor, y_tensor)
     num_samples = len(dataset)
 

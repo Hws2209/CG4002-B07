@@ -13,7 +13,7 @@ CHUNK_SIZE = TOTAL_WINDOW_SIZE * PACKET_SIZE
 # H = uint16, h = int16
 fmt = '<Hhhhhhh'  # '>': big-endian, '<': little-endian
 
-MODEL_TYPE = "Simplified MLP" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
+is_simple_mlp = False
 
 
 def extract_features(matrix):
@@ -56,29 +56,16 @@ def main():
                 buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
             
             # Form data_window
-            if MODEL_TYPE == "Simplified MLP":
+            if is_simple_mlp:
                 data_window = [extract_features(np.array(bucket)).tolist() for bucket in buckets]
             else:
                 data_window = [row for bucket in buckets for row in bucket]
                 
             count += 1
             print(f"\nNumber {count} data window:", data_window)
-            print("Shape:", len(data_window), len(data_window[0]))
-
-            if MODEL_TYPE == "Simplified MLP":
-                input_array = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
-            elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-                input_array = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
-            elif MODEL_TYPE == "CNN":
-                input_array = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
-            else:
-                raise ValueError("Invalid MODEL_TYPE")
+            print("Size:", len(data_window), len(data_window[0]))
             
-            print(f"\nNumber {count} input array:", input_array)
-            print("Type:", type(input_array))
-            print("Shape:", input_array.shape)
-
-            return # Only need one window for now
+            #return # Only need one window for now
 
 if __name__ == "__main__":
     main()

@@ -156,7 +156,7 @@ def main():
                 # OLD Data Format, To be removed
                 buckets[0].append([int(x) for x in line.split(" ")])
 
-                # TODO: NEW Data Format
+                # TODO: NEW Data Format, To replace current code
                 # line_values = [int(x) for x in line.split(" ")]
                 # device_id = line_values[0]
                 # sensor_values = line_values[1:]

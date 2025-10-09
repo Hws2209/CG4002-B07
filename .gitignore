@@ -1,1 +1,5 @@
+**/__pycache__/
 Comms/venv/
+AI/CNN_HLS/_ide
+AI/CNN_HLS/hls_component
+AI/CNN_Vivado/ip_repo
