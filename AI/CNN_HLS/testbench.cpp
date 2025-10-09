@@ -11,7 +11,8 @@
 #include <hls_stream.h>
 
 #define NUM_CHANNELS 6
-#define SEQ_LEN 20
+#define NUM_SENSORS 1 // To be updated
+#define SEQ_LEN 20 // WINDOW_SIZE * NUM_SENSORS
 #define NUM_CLASSES 4
 
 typedef int32_t input_t;
@@ -53,17 +54,29 @@ int main() {
     }
 
     std::string line;
-    std::vector<std::vector<int>> current_matrix;
+    std::vector<std::vector<std::vector<int>>> buckets(NUM_DEVICES);
     std::vector<int> golden_pred_classes;
     int sample_count = 0;
     int num_failures = 0;
     int num_logit_mismatches = 0;
 
-    auto process_sample = [&](const std::vector<std::vector<int>> &matrix) {
+    auto process_sample = [&]() {
+        // Concatenate buckets
+        std::vector<std::vector<int>> concatenated;
+        for (auto &b : buckets) {
+            concatenated.insert(concatenated.end(), b.begin(), b.end());
+        }
+
+        if (concatenated.size() != SEQ_LEN) {
+            std::cerr << "Unexpected concatenated size: " << concatenated.size() << " vs SEQ_LEN=" << SEQ_LEN << "\n";
+            return;
+        }
+        for (auto &b : buckets) b.clear();
+        
         // Transpose to [NUM_CHANNELS][SEQ_LEN]
         for (int t = 0; t < SEQ_LEN; t++)
             for (int ch = 0; ch < NUM_CHANNELS; ch++)
-                input[ch][t] = static_cast<input_t>(matrix[t][ch]);
+                input[ch][t] = static_cast<input_t>(concatenated[t][ch]);
 
         // Call CNN
         hls::stream<input_t> input_stream;
@@ -115,25 +128,32 @@ int main() {
     while (std::getline(data_file, line)) {
         if (line.empty()) {
             // End of current matrix
-            if (!current_matrix.empty()) {
-                process_sample(current_matrix);
-                current_matrix.clear();
+            bool any_bucket_filled = false;
+            for (auto &b : buckets) if (!b.empty()) any_bucket_filled = true;
+            if (any_bucket_filled) {
+                process_sample();
             }
             continue;
         }
 
         // Read one row
-        std::vector<int> row(NUM_CHANNELS, 0);
         std::istringstream iss(line);
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            iss >> row[ch];
+        int device_id;
+        iss >> device_id;
+
+        std::vector<int> sensor_values(NUM_CHANNELS, 0);
+        for (int i = 0; i < NUM_CHANNELS; ++i) {
+            iss >> sensor_values[i];
         }
-        current_matrix.push_back(row);
+
+        buckets[device_id - 1].push_back(sensor_values);
     }
 
     // Handle last matrix if file does not end with empty line
-    if (!current_matrix.empty()) {
-        process_sample(current_matrix);
+    bool any_bucket_filled = false;
+    for (auto &b : buckets) if (!b.empty()) any_bucket_filled = true;
+    if (any_bucket_filled) {
+        process_sample();
     }
 
     data_file.close();
