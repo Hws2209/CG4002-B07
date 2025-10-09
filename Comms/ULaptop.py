@@ -6,13 +6,10 @@ import time
 import threading
 import struct
 
-sys.path.append("./../Interface")  # relative to where you run Laptop.py
-from cli import *
-
 PACKET_SIZE = 20 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
-NUM_CLIENTS = 1 #num of esp 
+NUM_CLIENTS = 1 #num of esp TO CHANGE
 
 #encryption data
 key = bytes([
@@ -31,6 +28,9 @@ startSignalSent = False
 startRecevingFromESP = False
 startBarrier = threading.Barrier(NUM_CLIENTS)
 msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
+
+collectedData = []
+class_counts = {}
 
 #broadcast msg to all esp
 def broadcast(message: str):
@@ -73,19 +73,19 @@ def ESP_client(conn, addr):
         buffer = conn.recv(PACKET_SIZE)
         if not buffer:
             break
-        print(buffer.hex())
-        #dataPacket = cipher.decrypt(buffer)
         dataPacket = buffer
-        print(dataPacket.hex())
         header, device_id = struct.unpack("<H H", dataPacket[:4])
         encryptedPayload = dataPacket[4:]
         decryptedPayload = cipher.decrypt(encryptedPayload)
-        ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhhI", decryptedPayload)
+        ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
+
         ####FOR WANSING
-        print(ax, ay, az, gx, gy, gz, padding)
-        print(header, device_id)
+        print(device_id, ax, ay, az, gx, gy, gz)
+        print("Sanity check:", header, padding)
         packetCount += 1
-        print(packetCount)
+        print(f"ESP {device_id}: packet {packetCount}")
+        with ultraLock:
+          collectedData.append((device_id, ax, ay, az, gx, gy, gz))
 
       msgEndBarrier.wait()
     except ConnectionResetError:
@@ -137,6 +137,37 @@ def start_server():
     msgEndBarrier.wait()
     startRecevingFromESP = False
     print("time taken: ", time.time() - startTime)
+
+    # Ask for class label
+    class_input = input("Enter class (integer) for this round: ")
+    if class_input.isdigit():  # valid integer
+      class_label = int(class_input)
+
+      # Save collected data to file
+      data_filename = "data.txt"
+      with open(data_filename, "a") as f:
+        for row in collectedData:
+          f.write(" ".join(map(str, row)) + "\n")
+        f.write("\n") # blank line between rounds
+
+      # Save class label to file
+      label_filename = "label.txt"
+      with open(label_filename, "a") as f:
+        f.write(f"{class_label}\n")
+        
+      # Update counts
+      if class_label in class_counts:
+        class_counts[class_label] += 1
+      else:
+        class_counts[class_label] = 1
+
+      collectedData.clear() # clear buffer for next round
+      print(f"[SAVED] Wrote {NUM_CLIENTS * NUM_OF_PACKETS} rows to {data_filename}")
+      print(f"[SAVED] Class {class_label} written to {label_filename}")
+      print("[CLASS COUNTS]", class_counts)
+    else:
+      print("[SKIPPED] Invalid class. Data not saved.")
+      collectedData.clear()
 
 if __name__ == "__main__":
     start_server()
