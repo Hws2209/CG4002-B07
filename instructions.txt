@@ -1,0 +1,30 @@
+Instructions for Running the Project
+-----------------------------------
+
+1. On the Laptop:
+   - Run: Comms/Laptop.py
+   - Notes:
+     - Laptop.py contains the line:
+           sys.path.append(...)
+       The argument should be the relative path to the folder containing cli.py and the audio/ folder.
+       You can modify this path as needed.
+   - Requirements:
+     - Interface/cli.py
+     - Interface/audio/ (folder)
+
+2. On the Ultra96:
+   - Run: AI/Ultra96/run_model.sh
+     - This script runs run_model.py
+   - Requirements:
+     - AI/Ultra96/run_model.py
+     - AI/Ultra96/design_1.bit
+     - AI/Ultra96/design_1.hwh
+
+3. On the FireBeetle Boards:
+   - Upload: Comms/FireBeetle/FireBeetle.ino
+   - Notes:
+     - In FireBeetle.ino, the line:
+           #define DEVICE_ID 1
+       should be modified for each FireBeetle to give it a unique ID.
+   - Requirements:
+     - Hardware/wireless testing/wireless/MPU.h
