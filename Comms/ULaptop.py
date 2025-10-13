@@ -5,11 +5,18 @@ import sys
 import time
 import threading
 import struct
+import numpy as np
+import torch
+from scipy.stats import skew
 
 PACKET_SIZE = 20 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
-NUM_CLIENTS = 1 #num of esp TO CHANGE
+NUM_CLIENTS = 2 #num of esp TO CHANGE
+
+IS_TESTING_MODE = False
+MODEL_TYPE = "CNN"
+MODEL_PATH = "model.pt"
 
 #encryption data
 key = bytes([
@@ -31,6 +38,48 @@ msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
 
 collectedData = []
 class_counts = {}
+
+# Try loading the model once if testing mode is enabled
+if IS_TESTING_MODE:
+    model = torch.load(MODEL_PATH, map_location="cpu")
+    model.eval()
+    print(f"[MODEL] Loaded model from {MODEL_PATH}")
+
+def extract_features(matrix):
+    features = []
+    for i in range(matrix.shape[1]): # Each axis
+        axis = matrix[:, i]
+        fft_axis = np.fft.fft(axis)
+        features.extend([
+            np.mean(axis),
+            np.std(axis),
+            np.max(axis),
+            np.min(axis),
+            np.sqrt(np.mean(axis**2)),
+            skew(axis),
+            np.max(np.abs(fft_axis)),
+            np.max(np.angle(fft_axis))
+        ])
+    return np.array(features, dtype=np.float32)
+
+def preprocess(buckets):
+    if MODEL_TYPE == "Simplified MLP":
+        # Size = (NUM_FEATURES * NUM_DATA * NUM_SENSORS)
+        matrix = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
+    elif MODEL_TYPE == "MLP":
+        # Size = (WINDOW_SIZE * NUM_DATA * NUM_SENSORS)
+        matrix = np.concatenate(buckets, axis=0).ravel().astype(np.float32)
+    elif MODEL_TYPE == "RNN":
+        # Size = (WINDOW_SIZE * NUM_SENSORS, NUM_DATA)
+        matrix = np.concatenate(buckets, axis=0).astype(np.float32)
+    elif MODEL_TYPE == "CNN":
+        # Size = (NUM_DATA, WINDOW_SIZE * NUM_SENSORS)
+        matrix = np.concatenate(buckets, axis=0).T.astype(np.float32)
+    else:
+        raise ValueError("Invalid MODEL_TYPE")
+
+    return matrix
+
 
 #broadcast msg to all esp
 def broadcast(message: str):
@@ -75,6 +124,7 @@ def ESP_client(conn, addr):
             break
         dataPacket = buffer
         header, device_id = struct.unpack("<H H", dataPacket[:4])
+        print(dataPacket.hex())
         encryptedPayload = dataPacket[4:]
         decryptedPayload = cipher.decrypt(encryptedPayload)
         ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
@@ -137,6 +187,24 @@ def start_server():
     msgEndBarrier.wait()
     startRecevingFromESP = False
     print("time taken: ", time.time() - startTime)
+
+    if IS_TESTING_MODE:
+      print("Testing mode")
+
+      # Organize data into per-sensor buckets
+      buckets = [[] for _ in range(NUM_CLIENTS)]
+      for row in collectedData:
+        device_id, ax, ay, az, gx, gy, gz = row
+        buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
+
+      input_array = preprocess(buckets)
+      input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0)
+      with torch.no_grad():
+        output = model(input_tensor)
+      print("[MODEL OUTPUT]:", output)
+
+      collectedData.clear()
+      continue  # skip to next round
 
     # Ask for class label
     class_input = input("Enter class (integer) for this round: ")
