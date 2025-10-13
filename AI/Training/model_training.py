@@ -11,13 +11,13 @@ import optuna
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
-DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
+DATA_LABELS = ["0", "1", "2", "3", "4", "5", "6"]
 NUM_CLASSES = len(DATA_LABELS)
 NUM_DATA = 6
 WINDOW_SIZE = 20
-NUM_SENSORS = 1 # To be updated
+NUM_SENSORS = 2 # To be updated
 
-DATA = "SimpleData"
+DATA = "Data1"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
@@ -42,8 +42,10 @@ def generate_dummy_data(data_file, label_file):
                 lf.write(str(label_index) + "\n")
 
                 matrix = np.random.randint(1000 * label_index, 1000 * (label_index + 1), size=(WINDOW_SIZE * NUM_SENSORS, NUM_DATA))
-                for row in matrix:
-                    df.write(" ".join(map(str, row)) + "\n")
+                for i, row in enumerate(matrix):
+                    # Compute sensor_id based on row index
+                    sensor_id = (i % NUM_SENSORS) + 1
+                    df.write(str(sensor_id) + " " + " ".join(map(str, row)) + "\n")
                 df.write("\n")
     
     print(f"Generated data matrices in {data_file} and labels in {label_file}")
@@ -116,53 +118,6 @@ def import_data_with_id(data_file, label_file, lines_per_matrix):
 
     X_tensor = torch.tensor(np.array(matrices, dtype=np.float32), dtype=torch.float32)
     y_tensor = torch.tensor(np.array(labels_numeric, dtype=np.int64), dtype=torch.long)
-
-    return X_tensor, y_tensor
-
-
-def import_data(data_file, label_file, lines_per_matrix):
-    with open(label_file, "r") as f:
-        labels_numeric = [int(line.strip()) for line in f if line.strip()]
-
-    matrices = []
-    current_matrix = []
-
-    with open(data_file, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line: # Empty line indicates end of a matrix
-                if current_matrix:
-                    matrices.append(np.array(current_matrix, dtype=float))
-                    current_matrix = []
-            else:
-                current_matrix.append([float(x) for x in line.split(" ")])
-        # Add last matrix if file does not end with empty line
-        if current_matrix:
-            matrices.append(np.array(current_matrix, dtype=float))
-
-    # Check consistency
-    assert all(m.shape[0] == lines_per_matrix for m in matrices), "Matrix line count mismatch"
-    assert len(matrices) == len(labels_numeric), "Number of matrices and labels mismatch"
-
-    if MODEL_TYPE == "Simplified MLP":
-        # Summarise data
-        X_np = np.array([extract_features(m) for m in matrices], dtype=np.float32)
-    elif MODEL_TYPE == "MLP":
-        # Flatten each matrix
-        X_np = np.array([m.flatten() for m in matrices], dtype=np.float32)
-    elif MODEL_TYPE == "RNN":
-        # Stack matrices into 3D array: (num_samples, sequence_length, num_channels)
-        X_np = np.array([m for m in matrices], dtype=np.float32)
-    elif MODEL_TYPE == "CNN":
-        # Stack matrices into 3D array: (num_samples, num_channels, sequence_length)
-        X_np = np.array([m.T for m in matrices], dtype=np.float32)
-    else:
-        raise ValueError("Invalid MODEL_TYPE")
-
-    y_np = np.array(labels_numeric, dtype=np.int64)
-
-    X_tensor = torch.tensor(X_np, dtype=torch.float32)
-    y_tensor = torch.tensor(y_np, dtype=torch.long)
 
     return X_tensor, y_tensor
 
@@ -414,7 +369,7 @@ def main():
             generate_dummy_data(data_file, label_file)
 
     # Prepare data
-    X_tensor, y_tensor = import_data(data_file, label_file, WINDOW_SIZE * NUM_SENSORS) # TODO: To replace with import_data_with_id
+    X_tensor, y_tensor = import_data_with_id(data_file, label_file, WINDOW_SIZE * NUM_SENSORS)
     dataset = TensorDataset(X_tensor, y_tensor)
     num_samples = len(dataset)
 
@@ -499,6 +454,7 @@ def main():
     # Export
     should_export = input("Export? Y/N: ")
     if should_export.upper() == "Y":
+        os.makedirs(EXPORT_FOLDER_NAME, exist_ok=True)
         with open(f"{EXPORT_FOLDER_NAME}/best_params.txt", "w") as f:
             json.dump(best_params, f, indent=4)
         print("Best hyperparameters exported")
