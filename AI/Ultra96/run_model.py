@@ -8,8 +8,8 @@ import struct
 import sys
 from Crypto.Cipher import AES
 
-# To be updated
-DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
+DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
+               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"] # TBC
 NUM_CLASSES = len(DATA_LABELS)
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
@@ -17,7 +17,7 @@ MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 NUM_FEATURES = 8
 WINDOW_SIZE = 20
 NUM_DATA = 6
-NUM_SENSORS = 1 # To be updated
+NUM_SENSORS = 2
 
 NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
 
@@ -132,7 +132,7 @@ def classify_action(input_array):
     end_time = time.time()
 
     logger.info("Prediction logits: %s", pred_logits)
-    logger.info("Predicted class: %s", DATA_LABELS[pred_class])
+    logger.info("Predicted class: %d %s", pred_class, DATA_LABELS[pred_class])
     logger.info("Time taken for dma + model: %s", end_time - start_time)
 
     return pred_class
@@ -149,7 +149,7 @@ def main():
         buckets = [[] for _ in range(NUM_SENSORS)]
 
         while packetCount < (NUM_OF_PACKETS * numESPs):
-            buffer = ultraSocket.recv(PACKET_SIZE) #read upto number of bytes
+            buffer = ultraSocket.recv(PACKET_SIZE) # read up to number of bytes
             while len(buffer) >= PACKET_SIZE:
                 idx = buffer.find(HEADER)
                 if idx != -1 and len(buffer) >= PACKET_SIZE:
@@ -165,13 +165,12 @@ def main():
                         packetCount += 1
                         continue
 
-                    print(dataPacket.hex())
                     packetCount += 1
                     print(packetCount)
 
                     encryptedPayload = dataPacket[4:]
                     decryptedPayload = cipher.decrypt(encryptedPayload)
-                    ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhhI", decryptedPayload)
+                    ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
                     print(ax, ay, az, gx, gy, gz, padding)
                     buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
 

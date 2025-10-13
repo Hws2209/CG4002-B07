@@ -4,8 +4,8 @@ import numpy as np
 import time
 import logging
 
-# To be updated
-DATA_LABELS = ["0-idle", "1-wave", "2-updown", "3-rotate"]
+DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
+               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"] # TBC
 NUM_CLASSES = len(DATA_LABELS)
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
@@ -13,7 +13,7 @@ MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 NUM_FEATURES = 8
 WINDOW_SIZE = 20
 NUM_DATA = 6
-NUM_SENSORS = 1 # To be updated
+NUM_SENSORS = 2
 
 NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
 
@@ -117,7 +117,7 @@ def main():
         pred_class = int(np.argmax(pred_logits))
 
         logger.info("Prediction logits: %s", pred_logits)
-        logger.info("Predicted class: %s", DATA_LABELS[pred_class])
+        logger.info("Predicted class: %d %s", pred_class, DATA_LABELS[pred_class])
 
         end_time = time.time()
         total_compute_time += (end_time - start_time)
@@ -153,14 +153,10 @@ def main():
                         break
                 continue
             else:
-                # OLD Data Format, To be removed
-                buckets[0].append([int(x) for x in line.split(" ")])
-
-                # TODO: NEW Data Format, To replace current code
-                # line_values = [int(x) for x in line.split(" ")]
-                # device_id = line_values[0]
-                # sensor_values = line_values[1:]
-                # buckets[device_id - 1].append(sensor_values)
+                line_values = [int(x) for x in line.split(" ")]
+                device_id = line_values[0]
+                sensor_values = line_values[1:]
+                buckets[device_id - 1].append(sensor_values)
                 
         if any(buckets): # Handle last matrix if file does not end with empty line
             classify_action()

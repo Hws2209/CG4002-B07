@@ -11,9 +11,9 @@
 #include <hls_stream.h>
 
 #define NUM_CHANNELS 6
-#define NUM_SENSORS 1 // To be updated
-#define SEQ_LEN 20 // WINDOW_SIZE * NUM_SENSORS
-#define NUM_CLASSES 4
+#define NUM_SENSORS 2
+#define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
+#define NUM_CLASSES 12 // TBC
 
 typedef int32_t input_t;
 typedef float float_t;
@@ -54,7 +54,7 @@ int main() {
     }
 
     std::string line;
-    std::vector<std::vector<std::vector<int>>> buckets(NUM_DEVICES);
+    std::vector<std::vector<std::vector<int>>> buckets(NUM_SENSORS);
     std::vector<int> golden_pred_classes;
     int sample_count = 0;
     int num_failures = 0;

@@ -18,6 +18,8 @@ NUM_CLIENTS = 2 # num of esp
 IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
 MODEL_PATH = "model.pt"
+DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
+               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"] # TBC
 
 #encryption data
 key = bytes([
@@ -204,7 +206,9 @@ def start_server():
       with torch.no_grad():
         output = model(input_tensor)
       print("MODEL OUTPUT:", output)
-      print("PREDICTED CLASS:", torch.argmax(output, dim=1).item())
+      pred_idx = torch.argmax(output, dim=1).item()
+      pred_label = DATA_LABELS[pred_idx]
+      print(f"PREDICTED CLASS: {pred_idx} ({pred_label})")
 
       collectedData.clear()
       continue # skip to next round

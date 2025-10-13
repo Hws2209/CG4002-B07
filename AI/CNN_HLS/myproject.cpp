@@ -10,13 +10,13 @@
 #include "headers/fc2_bias.h"
 
 #define NUM_CHANNELS 6
-#define SEQ_LEN 20 // WINDOW_SIZE * NUM_SENSORS
+#define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
 #define CONV1_OUT 6
 #define CONV2_OUT 3
 #define KERNEL_SIZE 3
 #define POOL_SIZE 2
 #define FC1_NEURONS 64
-#define NUM_CLASSES 4
+#define NUM_CLASSES 12 // TBC
 
 typedef int32_t input_t;
 typedef float float_t;

@@ -11,11 +11,12 @@ import optuna
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
-DATA_LABELS = ["0", "1", "2", "3", "4", "5", "6"]
+DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
+               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"] # TBC
 NUM_CLASSES = len(DATA_LABELS)
 NUM_DATA = 6
 WINDOW_SIZE = 20
-NUM_SENSORS = 2 # To be updated
+NUM_SENSORS = 2
 
 DATA = "Data1"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
