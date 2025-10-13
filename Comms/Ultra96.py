@@ -22,7 +22,7 @@ else:
   print('did not receive ACK from Laptop')
   sys.exit(1)
 
-data = ultraSocket.recv(1)  # 4 bytes for unsigned int
+data = ultraSocket.recv(1)  
 numESPs = data[0]
 print("Number of ESPs:", numESPs)
 

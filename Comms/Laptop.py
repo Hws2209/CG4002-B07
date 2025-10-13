@@ -53,6 +53,9 @@ def ESP_client(conn, addr, ultraSocket):
     print(f"received HELLO from firebeetle {addr} ")
     msg = "ACK"
     conn.send(msg.encode())
+    data = conn.recv(1)  
+    deviceID = data[0]
+    print("DeviceID:", deviceID)
   else:
     print('did not receive HELLO')
 

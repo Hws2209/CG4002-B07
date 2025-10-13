@@ -87,7 +87,7 @@ void setup() {
     Serial.println("NOT Acknowledged");
   }
   Serial.println("Acknowledged");
-  
+  client.write(DEVICE_ID) 
 
   //test only, hardcode sensor value
   packet.header = 0xAA55;
@@ -101,6 +101,7 @@ void setup() {
   packet.padding = 0;
   aes128.setKey(key,16);// Setting Key for AES
 
+  
 
 }
 
@@ -122,7 +123,7 @@ void loop() {
     if (now - lastSample >= 20) {
       lastSample = now;
       // update packet with filtered MPU data
-      packet = mpu.readFilteredPacket(1);
+      packet = mpu.readFilteredPacket(DEVICE_ID);
     }
     
       // --- Send at 10 Hz (every 100 ms) ---
