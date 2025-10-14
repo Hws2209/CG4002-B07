@@ -1,0 +1,10 @@
+{
+    "lr": 0.009216336741951076,
+    "dropout": 0.2983040134714386,
+    "batch_size": 32,
+    "conv1_out": 4,
+    "conv2_out": 3,
+    "kernel_size_conv": 5,
+    "pool_size": 2,
+    "fc1_neurons": 128
+}

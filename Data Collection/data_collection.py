@@ -17,7 +17,7 @@ NUM_CLIENTS = 2 # num of esp
 
 IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
-MODEL_PATH = "model.pt"
+MODEL_PATH = "model_cnn.pt"
 DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
                "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"] # TBC
 
@@ -121,7 +121,6 @@ def ESP_client(conn, addr):
          continue
       
       #START RECEIVING DATAAA
-      #start_time = time.time()
       packetCount = 0
       buffer = b''
       while packetCount < NUM_OF_PACKETS:
@@ -134,9 +133,9 @@ def ESP_client(conn, addr):
         decryptedPayload = cipher.decrypt(encryptedPayload)
         ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
 
-        print(device_id, ax, ay, az, gx, gy, gz)
         packetCount += 1
-        print(f"ESP {device_id}: packet {packetCount}")
+        # print(f"ESP {device_id}: packet {packetCount}")
+        # print(device_id, ax, ay, az, gx, gy, gz)
         with ultraLock:
           collectedData.append((device_id, ax, ay, az, gx, gy, gz))
 
@@ -186,7 +185,7 @@ def start_server():
 
     startTime = time.time()
     startRecevingFromESP = True
-    print(f"[BROADCAST] {msg}")
+    # print(f"[BROADCAST] {msg}")
     broadcast(msg)
     msgEndBarrier.wait()
     startRecevingFromESP = False
@@ -201,10 +200,12 @@ def start_server():
         device_id, ax, ay, az, gx, gy, gz = row
         buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
 
+      startTime = time.time()
       input_array = preprocess(buckets)
       input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0)
       with torch.no_grad():
         output = model(input_tensor)
+      print("inference time: ", time.time() - startTime)
       print("MODEL OUTPUT:", output)
       pred_idx = torch.argmax(output, dim=1).item()
       pred_label = DATA_LABELS[pred_idx]

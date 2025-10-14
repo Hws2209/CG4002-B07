@@ -18,7 +18,7 @@ NUM_DATA = 6
 WINDOW_SIZE = 20
 NUM_SENSORS = 2
 
-DATA = "Data1"
+DATA = "Data2"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
