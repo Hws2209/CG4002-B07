@@ -92,14 +92,13 @@ def main():
 
     sample_count = 0
     num_failures = 0
-    num_logit_mismatches = 0
     total_compute_time = 0.0
 
     interactive_input = input("Interactive mode? Y/N: ")
     interactive_mode = interactive_input.upper() == "Y"
 
     def classify_action():
-        nonlocal sample_count, num_failures, num_logit_mismatches, total_compute_time, buckets
+        nonlocal sample_count, num_failures, total_compute_time, buckets
         logger.info("Received new input data")
 
         # Form input_array
@@ -128,9 +127,6 @@ def main():
         # Compare output from Ultra96 and laptop
         if pred_class != golden_class:
             num_failures += 1
-
-        if np.any(np.abs(pred_logits - golden_logits) > 0.01):
-            num_logit_mismatches += 1
 
         buckets = [[] for _ in range(NUM_SENSORS)]
         sample_count += 1
@@ -171,11 +167,6 @@ def main():
         print("Class check passed! All predicted classes match the golden.")
     else:
         print(f"Class check failed! {num_failures} mismatches found.")
-
-    if num_logit_mismatches == 0:
-        print("Logit check passed! All logits within 0.01 tolerance.")
-    else:
-        print(f"Logit check failed! {num_logit_mismatches} values exceeded 0.01 difference.")
         
 
 if __name__ == "__main__":

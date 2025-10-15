@@ -133,7 +133,7 @@ def classify_action(input_array):
 
     logger.info("Prediction logits: %s", pred_logits)
     logger.info("Predicted class: %d %s", pred_class, DATA_LABELS[pred_class])
-    logger.info("Time taken for dma + model: %s", end_time - start_time)
+    logger.info("Time taken for dma + inference: %s", end_time - start_time)
 
     return pred_class
 
@@ -181,7 +181,7 @@ def main():
             
 
         # Received all packets of data
-        print("time taken: ", time.time() - startTime)
+        print("time taken to receive all data: ", time.time() - startTime)
         logger.info("Received new set of input data. Preprocessing...")
         
         # Form input_array

@@ -2,7 +2,7 @@
 #define CONV1_BIAS_H
 
 static const float conv1_bias[] = {
-0.161529f, -0.088022f, 0.371899f, -0.107745f, -0.161218f, -0.513746f, 
+-0.131066f, 0.117066f, -0.221597f, 0.050669f, 
 };
 
 #endif // CONV1_BIAS_H

@@ -20,7 +20,7 @@
     "components": {
       "cnn_forward_0": {
         "vlnv": "xilinx.com:hls:cnn_forward:1.0",
-        "ip_revision": "2114274986",
+        "ip_revision": "2114303778",
         "xci_name": "design_1_cnn_forward_0_0",
         "xci_path": "ip\\design_1_cnn_forward_0_0\\design_1_cnn_forward_0_0.xci",
         "inst_hier_path": "cnn_forward_0",

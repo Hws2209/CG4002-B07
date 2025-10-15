@@ -11,7 +11,7 @@
 
 #define NUM_CHANNELS 6
 #define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
-#define CONV1_OUT 6
+#define CONV1_OUT 4
 #define CONV2_OUT 3
 #define KERNEL_SIZE 3
 #define POOL_SIZE 2
