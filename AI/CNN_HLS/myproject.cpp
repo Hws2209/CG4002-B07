@@ -11,11 +11,11 @@
 
 #define NUM_CHANNELS 6
 #define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
-#define CONV1_OUT 4
+#define CONV1_OUT 6
 #define CONV2_OUT 3
 #define KERNEL_SIZE 3
 #define POOL_SIZE 2
-#define FC1_NEURONS 64
+#define FC1_NEURONS 128
 #define NUM_CLASSES 12 // TBC
 
 typedef int32_t input_t;
@@ -115,7 +115,7 @@ void fc(
     #pragma HLS ARRAY_PARTITION variable=input complete dim=1
     
     FC_Loop_O: for (int o = 0; o < out_size; o++) {
-        #pragma HLS PIPELINE II=2
+        #pragma HLS PIPELINE II=4
         float_t sum = bias[o];
         FC_Loop_I: for (int i = 0; i < in_size; i++) {
             #pragma HLS ALLOCATION instances=fmul limit=64 operation

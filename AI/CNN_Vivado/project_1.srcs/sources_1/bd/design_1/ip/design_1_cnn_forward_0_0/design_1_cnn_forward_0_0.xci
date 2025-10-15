@@ -4,7 +4,7 @@
     "xci_name": "design_1_cnn_forward_0_0",
     "cell_name": "cnn_forward_0",
     "component_reference": "xilinx.com:hls:cnn_forward:1.0",
-    "ip_revision": "2114303778",
+    "ip_revision": "2114304739",
     "gen_directory": "../../../../../../project_1.gen/sources_1/bd/design_1/ip/design_1_cnn_forward_0_0",
     "parameters": {
       "component_parameters": {
@@ -12,8 +12,8 @@
         "clk_period": [ { "value": "10", "enabled": false, "usage": "all" } ],
         "machine": [ { "value": "64", "enabled": false, "usage": "all" } ],
         "combinational": [ { "value": "0", "enabled": false, "usage": "all" } ],
-        "latency": [ { "value": "1503", "enabled": false, "usage": "all" } ],
-        "II": [ { "value": "1504", "enabled": false, "usage": "all" } ]
+        "latency": [ { "value": "2271", "enabled": false, "usage": "all" } ],
+        "II": [ { "value": "2272", "enabled": false, "usage": "all" } ]
       },
       "project_parameters": {
         "ARCHITECTURE": [ { "value": "zynquplus" } ],
@@ -30,7 +30,7 @@
       },
       "runtime_parameters": {
         "IPCONTEXT": [ { "value": "IP_Integrator" } ],
-        "IPREVISION": [ { "value": "2114303778" } ],
+        "IPREVISION": [ { "value": "2114304739" } ],
         "MANAGED": [ { "value": "TRUE" } ],
         "OUTPUTDIR": [ { "value": "../../../../../../project_1.gen/sources_1/bd/design_1/ip/design_1_cnn_forward_0_0" } ],
         "SELECTEDSIMMODEL": [ { "value": "" } ],

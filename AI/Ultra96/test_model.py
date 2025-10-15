@@ -114,12 +114,11 @@ def main():
         start_time = time.time()
         pred_logits = get_model_output(input_array)
         pred_class = int(np.argmax(pred_logits))
+        end_time = time.time()
+        total_compute_time += (end_time - start_time)
 
         logger.info("Prediction logits: %s", pred_logits)
         logger.info("Predicted class: %d %s", pred_class, DATA_LABELS[pred_class])
-
-        end_time = time.time()
-        total_compute_time += (end_time - start_time)
 
         golden_logits = golden_logits_matrix[sample_count]
         golden_class = int(np.argmax(golden_logits))

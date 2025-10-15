@@ -3,8 +3,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset, random_split
+from torch.utils.data import DataLoader, TensorDataset, random_split, Subset
 from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
 from scipy.stats import skew
 import json
 import optuna
@@ -375,10 +376,22 @@ def main():
     num_samples = len(dataset)
 
     # Split train, val, test
-    test_size = val_size = int(0.15 * num_samples)
-    train_size = num_samples - test_size - val_size
-    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size],
-                                                            generator=torch.Generator().manual_seed(SEED))
+    labels = y_tensor.numpy()
+    train_val_indices, test_indices = train_test_split(
+        range(num_samples),
+        test_size=0.15,
+        stratify=labels,
+        random_state=SEED
+    )
+    train_indices, val_indices = train_test_split(
+        train_val_indices,
+        test_size=0.15 / 0.85,  # 15% of remaining for val
+        stratify=labels[train_val_indices],
+        random_state=SEED
+    )
+    train_dataset = Subset(dataset, train_indices)
+    val_dataset   = Subset(dataset, val_indices)
+    test_dataset  = Subset(dataset, test_indices)
 
     # Optuna tuning
     study = optuna.create_study(direction="maximize")
