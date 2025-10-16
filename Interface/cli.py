@@ -29,50 +29,50 @@ def save_high_score(score):
         f.write(str(score))
 
 
-def play_game(high_score):
-    current_score = 0
-    print(f"Current score: {current_score}")
+def play_game(highScore):
+    currentScore = 0
+    print(f"Current score: {currentScore}")
 
     while True:
-        expected_class = random.randint(0, 15)
+        expectedClass = random.randint(0, 15)
 
         # Play audio file
-        audio_file = f"./../Interface/audio/{expected_class}.wav"
-        if os.path.exists(audio_file):
-            play_audio(audio_file)
+        audioFile = f"./../Interface/audio/{expectedClass}.wav"
+        if os.path.exists(audioFile):
+            play_audio(audioFile)
         else:
-            print(f"(Audio file {audio_file} missing — skipping sound)")
+            print(f"(Audio file {audioFile} missing — skipping sound)")
 
         time.sleep(2)  # wait 2 seconds after audio
 
         try:
-            predicted_class = int(input("Predicted class from model: ").strip())
+            predictedClass = int(input("Predicted class from model: ").strip())
         except ValueError:
             print("Invalid input! Please enter a number.")
             continue
 
-        if predicted_class == expected_class:
-            current_score += 1
-            print(f"Correct! Current score: {current_score}")
+        if predictedClass == expectedClass:
+            currentScore += 1
+            print(f"Correct! Current score: {currentScore}")
         else:
             print("\nGame over!")
-            print(f"Final score: {current_score}")
-            if current_score > high_score:
-                high_score = current_score
-                save_high_score(high_score)
-            print(f"High score: {high_score}")
+            print(f"Final score: {currentScore}")
+            if currentScore > highScore:
+                highScore = currentScore
+                save_high_score(highScore)
+            print(f"High score: {highScore}")
             break
 
-    return high_score
+    return highScore
 
 
 def main():
-    high_score = load_high_score()
-    print(f"High score: {high_score}")
+    highScore = load_high_score()
+    print(f"High score: {highScore}")
     
     while True:
         input("Press Enter to start game: ")
-        high_score = play_game(high_score)
+        highScore = play_game(highScore)
 
 
 if __name__ == "__main__":

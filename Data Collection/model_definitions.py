@@ -13,17 +13,17 @@ from scipy.stats import skew
 
 # CNN Model
 class ActionCNN(nn.Module):
-    def __init__(self, num_channels, num_classes, sequence_length,
-                 conv1_out=6, conv2_out=3, kernel_size_conv=3, pool_size=2,
-                 fc1_neurons=64, dropout=0.3):
+    def __init__(self, numChannels, numClasses, sequenceLength,
+                 conv1Out=6, conv2Out=3, kernelSizeConv=3, poolSize=2,
+                 fc1Neurons=64, dropout=0.3):
         super().__init__()
-        self.conv1 = nn.Conv1d(num_channels, conv1_out, kernel_size=kernel_size_conv, padding='same')
-        self.bn1 = nn.BatchNorm1d(conv1_out)
-        self.conv2 = nn.Conv1d(conv1_out, conv2_out, kernel_size=kernel_size_conv, padding='same')
-        self.bn2 = nn.BatchNorm1d(conv2_out)
-        self.pool = nn.MaxPool1d(kernel_size=pool_size)
-        self.fc1 = nn.Linear(conv2_out * (sequence_length // pool_size), fc1_neurons)
-        self.fc2 = nn.Linear(fc1_neurons, num_classes)
+        self.conv1 = nn.Conv1d(numChannels, conv1Out, kernel_size=kernelSizeConv, padding='same')
+        self.bn1 = nn.BatchNorm1d(conv1Out)
+        self.conv2 = nn.Conv1d(conv1Out, conv2Out, kernel_size=kernelSizeConv, padding='same')
+        self.bn2 = nn.BatchNorm1d(conv2Out)
+        self.pool = nn.MaxPool1d(kernel_size=poolSize)
+        self.fc1 = nn.Linear(conv2Out * (sequenceLength // poolSize), fc1Neurons)
+        self.fc2 = nn.Linear(fc1Neurons, numClasses)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout)
 
@@ -39,19 +39,19 @@ class ActionCNN(nn.Module):
 
 # RNN Model
 class ActionRNN(nn.Module):
-    def __init__(self, num_channels, num_classes, hidden_size=64, num_layers=1, dropout=0.3):
+    def __init__(self, numChannels, numClasses, hiddenSize=64, numLayers=1, dropout=0.3):
         super().__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.lstm = nn.LSTM(input_size=num_channels, hidden_size=self.hidden_size,
-                            num_layers=self.num_layers, batch_first=True, dropout=dropout)
+        self.hiddenSize = hiddenSize
+        self.numLayers = numLayers
+        self.lstm = nn.LSTM(input_size=numChannels, hidden_size=self.hiddenSize,
+                            num_layers=self.numLayers, batch_first=True, dropout=dropout)
         self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(self.hidden_size, num_classes)
+        self.fc = nn.Linear(self.hiddenSize, numClasses)
     
     def forward(self, x):        
         # Initialize hidden and cell states
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        h0 = torch.zeros(self.numLayers, x.size(0), self.hiddenSize).to(x.device)
+        c0 = torch.zeros(self.numLayers, x.size(0), self.hiddenSize).to(x.device)
         
         out, _ = self.lstm(x, (h0, c0))
         out = out[:, -1, :] # Take last timestep output
@@ -62,12 +62,12 @@ class ActionRNN(nn.Module):
 
 # MLP Model
 class ActionMLP(nn.Module):
-    def __init__(self, input_size, num_classes,
+    def __init__(self, inputSize, numClasses,
                  hidden1=256, hidden2=128, dropout=0.3):
         super().__init__()
-        self.fc1 = nn.Linear(input_size, hidden1)
+        self.fc1 = nn.Linear(inputSize, hidden1)
         self.fc2 = nn.Linear(hidden1, hidden2)
-        self.fc3 = nn.Linear(hidden2, num_classes)
+        self.fc3 = nn.Linear(hidden2, numClasses)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout)
 
@@ -82,11 +82,11 @@ class ActionMLP(nn.Module):
 
 # MLP Model with summarised data
 class SimplifiedMLP(nn.Module):
-    def __init__(self, input_size, num_classes, hidden_size=64, dropout=0.3):
+    def __init__(self, inputSize, numClasses, hiddenSize=64, dropout=0.3):
         super().__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc1 = nn.Linear(inputSize, hiddenSize)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, num_classes)
+        self.fc2 = nn.Linear(hiddenSize, numClasses)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):

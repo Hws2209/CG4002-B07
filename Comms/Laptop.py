@@ -12,7 +12,9 @@ from cli import *
 PACKET_SIZE = 20 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
-NUM_CLIENTS = 2 #num of esp 
+NUM_CLIENTS = 2 #num of esp
+DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
+               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
 
 #encryption data
 key = bytes([
@@ -44,17 +46,17 @@ def broadcast(message: str):
 
 # Play audio file
 def sound_command(simonSays, expectedClass):
-  simon_file = f"./../Interface/audio/simon_says.wav"
-  audio_file = f"./../Interface/audio/{expectedClass}.wav"
+  simonFile = f"./../Interface/audio/simon_says.wav"
+  audioFile = f"./../Interface/audio/{expectedClass}.wav"
   if simonSays:
-    if os.path.exists(simon_file):
-        play_audio(simon_file)
+    if os.path.exists(simonFile):
+        play_audio(simonFile)
     else:
-          print(f"(Audio file {simon_file} missing — skipping sound)")
-  if os.path.exists(audio_file):
-      play_audio(audio_file)
+          print(f"(Audio file {simonFile} missing — skipping sound)")
+  if os.path.exists(audioFile):
+      play_audio(audioFile)
   else:
-        print(f"(Audio file {audio_file} missing — skipping sound)")
+        print(f"(Audio file {audioFile} missing — skipping sound)")
 
 
 
@@ -191,10 +193,10 @@ def start_server():
     startRecevingFromESP = False
     print("time taken: ", time.time() - startTime)
     data = ultraSocket.recv(1)  # 4 bytes for unsigned int
-    predicted_class = data[0]
-    print("Expected Action:", expectedClass)
-    print("Action Detected:", predicted_class)
-    if predicted_class == expectedClass:
+    predictedClass = data[0]
+    print("Expected Action:", DATA_LABELS[expectedClass])
+    print("Action Detected:", DATA_LABELS[predictedClass])
+    if predictedClass == expectedClass:
         currentScore += 1
         print(f"Correct! Current score: {currentScore}")
         prevRoundCorrect = True

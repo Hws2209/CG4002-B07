@@ -19,7 +19,7 @@ IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
 MODEL_PATH = "model_cnn.pt"
 DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
-               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"] # TBC
+               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
 
 #encryption data
 key = bytes([
@@ -40,7 +40,7 @@ startBarrier = threading.Barrier(NUM_CLIENTS)
 msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
 
 collectedData = []
-class_counts = {}
+classCounts = {}
 
 # Try loading the model once if testing mode is enabled
 if IS_TESTING_MODE:
@@ -52,7 +52,7 @@ def extract_features(matrix):
     features = []
     for i in range(matrix.shape[1]): # Each axis
         axis = matrix[:, i]
-        fft_axis = np.fft.fft(axis)
+        fftAxis = np.fft.fft(axis)
         features.extend([
             np.mean(axis),
             np.std(axis),
@@ -60,8 +60,8 @@ def extract_features(matrix):
             np.min(axis),
             np.sqrt(np.mean(axis**2)),
             skew(axis),
-            np.max(np.abs(fft_axis)),
-            np.max(np.angle(fft_axis))
+            np.max(np.abs(fftAxis)),
+            np.max(np.angle(fftAxis))
         ])
     return np.array(features, dtype=np.float32)
 
@@ -128,16 +128,16 @@ def ESP_client(conn, addr):
         if not buffer:
             break
         dataPacket = buffer
-        header, device_id = struct.unpack("<H H", dataPacket[:4])
+        header, deviceID = struct.unpack("<H H", dataPacket[:4])
         encryptedPayload = dataPacket[4:]
         decryptedPayload = cipher.decrypt(encryptedPayload)
         ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
 
         packetCount += 1
-        # print(f"ESP {device_id}: packet {packetCount}")
-        # print(device_id, ax, ay, az, gx, gy, gz)
+        # print(f"ESP {deviceID}: packet {packetCount}")
+        # print(deviceID, ax, ay, az, gx, gy, gz)
         with ultraLock:
-          collectedData.append((device_id, ax, ay, az, gx, gy, gz))
+          collectedData.append((deviceID, ax, ay, az, gx, gy, gz))
 
       msgEndBarrier.wait()
     except ConnectionResetError:
@@ -197,50 +197,50 @@ def start_server():
       # Organize data into per-sensor buckets
       buckets = [[] for _ in range(NUM_CLIENTS)]
       for row in collectedData:
-        device_id, ax, ay, az, gx, gy, gz = row
-        buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
+        deviceID, ax, ay, az, gx, gy, gz = row
+        buckets[deviceID - 1].append([ax, ay, az, gx, gy, gz])
 
       startTime = time.time()
-      input_array = preprocess(buckets)
-      input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0)
+      inputArray = preprocess(buckets)
+      inputTensor = torch.tensor(inputArray, dtype=torch.float32).unsqueeze(0)
       with torch.no_grad():
-        output = model(input_tensor)
+        output = model(inputTensor)
       print("inference time: ", time.time() - startTime)
       print("MODEL OUTPUT:", output)
-      pred_idx = torch.argmax(output, dim=1).item()
-      pred_label = DATA_LABELS[pred_idx]
-      print(f"PREDICTED CLASS: {pred_idx} ({pred_label})")
+      predIdx = torch.argmax(output, dim=1).item()
+      predLabel = DATA_LABELS[predIdx]
+      print(f"PREDICTED CLASS: {predIdx} ({predLabel})")
 
       collectedData.clear()
       continue # skip to next round
 
     # Ask for class label
-    class_input = input("Enter class (integer) for this round: ")
-    if class_input.isdigit():  # valid integer
-      class_label = int(class_input)
+    classInput = input("Enter class (integer) for this round: ")
+    if classInput.isdigit():  # valid integer
+      classLabel = int(classInput)
 
       # Save collected data to file
-      data_filename = "data.txt"
-      with open(data_filename, "a") as f:
+      dataFilename = "data.txt"
+      with open(dataFilename, "a") as f:
         for row in collectedData:
           f.write(" ".join(map(str, row)) + "\n")
         f.write("\n") # blank line between rounds
 
       # Save class label to file
-      label_filename = "label.txt"
-      with open(label_filename, "a") as f:
-        f.write(f"{class_label}\n")
+      labelFilename = "label.txt"
+      with open(labelFilename, "a") as f:
+        f.write(f"{classLabel}\n")
         
       # Update counts
-      if class_label in class_counts:
-        class_counts[class_label] += 1
+      if classLabel in classCounts:
+        classCounts[classLabel] += 1
       else:
-        class_counts[class_label] = 1
+        classCounts[classLabel] = 1
 
       collectedData.clear() # clear buffer for next round
-      print(f"[SAVED] Wrote {NUM_CLIENTS * NUM_OF_PACKETS} rows to {data_filename}")
-      print(f"[SAVED] Class {class_label} written to {label_filename}")
-      print("[CLASS COUNTS]", class_counts)
+      print(f"[SAVED] Wrote {NUM_CLIENTS * NUM_OF_PACKETS} rows to {dataFilename}")
+      print(f"[SAVED] Class {classLabel} written to {labelFilename}")
+      print("[CLASS COUNTS]", classCounts)
     else:
       print("[SKIPPED] Invalid class. Data not saved.")
       collectedData.clear()

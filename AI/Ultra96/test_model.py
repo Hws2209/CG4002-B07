@@ -4,7 +4,6 @@ import numpy as np
 import time
 import logging
 
-
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
 
@@ -18,136 +17,15 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def extract_features(input):
-    features = []
-    for i in range(NUM_DATA):
-        axis = input[:, i]
-        fft_axis = np.fft.fft(axis)
-        
-        features.extend([
-            np.mean(axis),
-            np.std(axis),
-            np.max(axis),
-            np.min(axis),
-            np.sqrt(np.mean(axis**2)),
-            skew(axis),
-            np.max(np.abs(fft_axis)),
-            np.max(np.angle(fft_axis))
-        ])
-
-    return np.array(features, dtype=np.float32)
-
-
-def get_model_output(input_array):
-    global input_buffer, output_buffer, dma, DATA_LABELS
-    logger.info("Preparing input buffer...")
-    np.copyto(input_buffer, input_array)
-
-    try:
-        logger.info("Starting DMA send transfer...")
-        dma.sendchannel.transfer(input_buffer)
-        dma.recvchannel.transfer(output_buffer)
-        dma.sendchannel.wait()
-        dma.recvchannel.wait()
-        logger.info("DMA receive completed.")
-
-        return output_buffer.copy()
-    except RuntimeError as e:
-        print(e)
-        print("Error config:\n", dma.register_map)
-
-
-def main():
-    buckets = [[] for _ in range(NUM_SENSORS)]
-    golden_logits_matrix = np.loadtxt("golden_logits.txt", dtype=np.float32) # Output from testing on laptop
-
-    sample_count = 0
-    num_failures = 0
-    total_compute_time = 0.0
-
-    interactive_input = input("Interactive mode? Y/N: ")
-    interactive_mode = interactive_input.upper() == "Y"
-
-    def classify_action():
-        nonlocal sample_count, num_failures, total_compute_time, buckets
-        logger.info("Received new input data")
-
-        # Form input_array
-        if MODEL_TYPE == "Simplified MLP":
-            input_array = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
-        elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-            input_array = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
-        elif MODEL_TYPE == "CNN":
-            input_array = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
-        else:
-            raise ValueError("Invalid MODEL_TYPE")
-        
-        start_time = time.time()
-        pred_logits = get_model_output(input_array)
-        pred_class = int(np.argmax(pred_logits))
-        end_time = time.time()
-        total_compute_time += (end_time - start_time)
-
-        logger.info("Prediction logits: %s", pred_logits)
-        logger.info("Predicted class: %d %s", pred_class, DATA_LABELS[pred_class])
-
-        golden_logits = golden_logits_matrix[sample_count]
-        golden_class = int(np.argmax(golden_logits))
-
-        # Compare output from Ultra96 and laptop
-        if pred_class != golden_class:
-            num_failures += 1
-
-        buckets = [[] for _ in range(NUM_SENSORS)]
-        sample_count += 1
-
-        if sample_count % 50 == 0:
-            print(f"Processed {sample_count} samples so far...")
-
-        if not interactive_mode:
-            return True
-        
-        continue_signal = input("Continue? Y/N: ")
-        return continue_signal.upper() == "Y"
-    
-    with open("data.txt", "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line: # Empty line indicates end of a matrix
-                if any(buckets):
-                    if not classify_action():
-                        break
-                continue
-            else:
-                line_values = [int(x) for x in line.split(" ")]
-                device_id = line_values[0]
-                sensor_values = line_values[1:]
-                buckets[device_id - 1].append(sensor_values)
-                
-        if any(buckets): # Handle last matrix if file does not end with empty line
-            classify_action()
-
-    # Print summary
-    print(f"Processed {sample_count} samples")
-    
-    if sample_count > 0:
-        print(f"Average time per prediction: {total_compute_time/sample_count:.6f} seconds")
-
-    if num_failures == 0:
-        print("Class check passed! All predicted classes match the golden.")
-    else:
-        print(f"Class check failed! {num_failures} mismatches found.")
-        
-
 def setup_ai():
-    global DATA_LABELS, MODEL_TYPE, NUM_DATA, NUM_SENSORS
-    global input_buffer, output_buffer, dma
+    global DATA_LABELS, NUM_DATA, NUM_SENSORS
+    global inputBuffer, outputBuffer, dma
 
     mode = int(input("Enter a number: "))
 
     if mode == 1:
         DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
-               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
+                       "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
     else:
         DATA_LABELS = ["class0", "class1", "class2", "class3", "class4", "class5", "class6", 
                        "class7", "class8", "class9", "class10", "class11"]
@@ -166,22 +44,143 @@ def setup_ai():
 
     if mode == 1:
         ol = Overlay('design_1.bit') # Loads the FPGA bitstream
+        logger.info("Overlay loaded (design_1.bit): %s", ol)
     else:
         ol = Overlay('design_2.bit')
-
-    logger.info("Overlay loaded: %s", ol)
+        logger.info("Overlay loaded (design_2.bit): %s", ol)
 
     dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
     logger.info("DMA object: %s", dma)
 
     if MODEL_TYPE == "Simplified MLP":
-        input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
+        inputBuffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
     else:
-        input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
-    output_buffer = allocate(shape=(NUM_CLASSES,), dtype=np.float32) # To store output logit from FPGA
+        inputBuffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
+    outputBuffer = allocate(shape=(NUM_CLASSES,), dtype=np.float32) # To store output logit from FPGA
 
-    logger.info("Input buffer allocated with shape %s", input_buffer.shape)
-    logger.info("Output buffer allocated with shape %s", output_buffer.shape)
+    logger.info("Input buffer allocated with shape %s", inputBuffer.shape)
+    logger.info("Output buffer allocated with shape %s", outputBuffer.shape)
+
+
+def extract_features(input):
+    features = []
+    for i in range(NUM_DATA):
+        axis = input[:, i]
+        fftAxis = np.fft.fft(axis)
+        
+        features.extend([
+            np.mean(axis),
+            np.std(axis),
+            np.max(axis),
+            np.min(axis),
+            np.sqrt(np.mean(axis**2)),
+            skew(axis),
+            np.max(np.abs(fftAxis)),
+            np.max(np.angle(fftAxis))
+        ])
+
+    return np.array(features, dtype=np.float32)
+
+
+def get_model_output(inputArray):
+    global inputBuffer, outputBuffer, dma, DATA_LABELS
+    logger.info("Preparing input buffer...")
+    np.copyto(inputBuffer, inputArray)
+
+    try:
+        logger.info("Starting DMA send transfer...")
+        dma.sendchannel.transfer(inputBuffer)
+        dma.recvchannel.transfer(outputBuffer)
+        dma.sendchannel.wait()
+        dma.recvchannel.wait()
+        logger.info("DMA receive completed.")
+
+        return outputBuffer.copy()
+    except RuntimeError as e:
+        print(e)
+        print("Error config:\n", dma.register_map)
+
+
+def main():
+    buckets = [[] for _ in range(NUM_SENSORS)]
+    goldenLogitsMatrix = np.loadtxt("goldenLogits.txt", dtype=np.float32) # Output from testing on laptop
+
+    sampleCount = 0
+    numFailures = 0
+    totalComputeTime = 0.0
+
+    interactiveInput = input("Interactive mode? Y/N: ")
+    interactiveMode = interactiveInput.upper() == "Y"
+
+    def classify_action():
+        nonlocal sampleCount, numFailures, totalComputeTime, buckets
+        logger.info("Received new input data")
+
+        # Form inputArray
+        if MODEL_TYPE == "Simplified MLP":
+            inputArray = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
+        elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
+            inputArray = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
+        elif MODEL_TYPE == "CNN":
+            inputArray = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
+        else:
+            raise ValueError("Invalid MODEL_TYPE")
+        
+        startTime = time.time()
+        predLogits = get_model_output(inputArray)
+        predClass = int(np.argmax(predLogits))
+        endTime = time.time()
+        totalComputeTime += (endTime - startTime)
+
+        logger.info("Prediction logits: %s", predLogits)
+        logger.info("Predicted class: %d %s", predClass, DATA_LABELS[predClass])
+
+        goldenLogits = goldenLogitsMatrix[sampleCount]
+        goldenClass = int(np.argmax(goldenLogits))
+
+        # Compare output from Ultra96 and laptop
+        if predClass != goldenClass:
+            numFailures += 1
+
+        buckets = [[] for _ in range(NUM_SENSORS)]
+        sampleCount += 1
+
+        if sampleCount % 50 == 0:
+            print(f"Processed {sampleCount} samples so far...")
+
+        if not interactiveMode:
+            return True
+        
+        continueSignal = input("Continue? Y/N: ")
+        return continueSignal.upper() == "Y"
+    
+    with open("data.txt", "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line: # Empty line indicates end of a matrix
+                if any(buckets):
+                    if not classify_action():
+                        break
+                continue
+            else:
+                lineValues = [int(x) for x in line.split(" ")]
+                deviceID = lineValues[0]
+                sensorValues = lineValues[1:]
+                buckets[deviceID - 1].append(sensorValues)
+                
+        if any(buckets): # Handle last matrix if file does not end with empty line
+            classify_action()
+
+    # Print summary
+    print(f"Processed {sampleCount} samples")
+    
+    if sampleCount > 0:
+        print(f"Average time per prediction: {totalComputeTime/sampleCount:.6f} seconds")
+
+    if numFailures == 0:
+        print("Class check passed! All predicted classes match the golden.")
+    else:
+        print(f"Class check failed! {numFailures} mismatches found.")
 
 
 if __name__ == "__main__":

@@ -30,7 +30,7 @@ startBarrier = threading.Barrier(NUM_CLIENTS)
 msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
 
 collectedData = []
-class_counts = {}
+classCounts = {}
 
 #broadcast msg to all esp
 def broadcast(message: str):
@@ -77,18 +77,18 @@ def ESP_client(conn, addr):
         if not buffer:
             break
         dataPacket = buffer
-        header, device_id = struct.unpack("<H H", dataPacket[:4])
+        header, deviceID = struct.unpack("<H H", dataPacket[:4])
         encryptedPayload = dataPacket[4:]
         decryptedPayload = cipher.decrypt(encryptedPayload)
         ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
 
         ####FOR WANSING
-        print(device_id, ax, ay, az, gx, gy, gz)
+        print(deviceID, ax, ay, az, gx, gy, gz)
         print("Sanity check:", header, padding)
         packetCount += 1
-        print(f"ESP {device_id}: packet {packetCount}")
+        print(f"ESP {deviceID}: packet {packetCount}")
         with ultraLock:
-          collectedData.append((device_id, ax, ay, az, gx, gy, gz))
+          collectedData.append((deviceID, ax, ay, az, gx, gy, gz))
 
       msgEndBarrier.wait()
     except ConnectionResetError:
@@ -142,32 +142,32 @@ def start_server():
     print("time taken: ", time.time() - startTime)
 
     # Ask for class label
-    class_input = input("Enter class (integer) for this round: ")
-    if class_input.isdigit():  # valid integer
-      class_label = int(class_input)
+    classInput = input("Enter class (integer) for this round: ")
+    if classInput.isdigit():  # valid integer
+      classLabel = int(classInput)
 
       # Save collected data to file
-      data_filename = "data.txt"
-      with open(data_filename, "a") as f:
+      dataFilename = "data.txt"
+      with open(dataFilename, "a") as f:
         for row in collectedData:
           f.write(" ".join(map(str, row)) + "\n")
         f.write("\n") # blank line between rounds
 
       # Save class label to file
-      label_filename = "label.txt"
-      with open(label_filename, "a") as f:
-        f.write(f"{class_label}\n")
+      labelFilename = "label.txt"
+      with open(labelFilename, "a") as f:
+        f.write(f"{classLabel}\n")
         
       # Update counts
-      if class_label in class_counts:
-        class_counts[class_label] += 1
+      if classLabel in classCounts:
+        classCounts[classLabel] += 1
       else:
-        class_counts[class_label] = 1
+        classCounts[classLabel] = 1
 
       collectedData.clear() # clear buffer for next round
-      print(f"[SAVED] Wrote {NUM_CLIENTS * NUM_OF_PACKETS} rows to {data_filename}")
-      print(f"[SAVED] Class {class_label} written to {label_filename}")
-      print("[CLASS COUNTS]", class_counts)
+      print(f"[SAVED] Wrote {NUM_CLIENTS * NUM_OF_PACKETS} rows to {dataFilename}")
+      print(f"[SAVED] Class {classLabel} written to {labelFilename}")
+      print("[CLASS COUNTS]", classCounts)
     else:
       print("[SKIPPED] Invalid class. Data not saved.")
       collectedData.clear()
