@@ -4,18 +4,8 @@ import numpy as np
 import time
 import logging
 
-DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
-               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"] # TBC
-NUM_CLASSES = len(DATA_LABELS)
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
-
-NUM_FEATURES = 8
-WINDOW_SIZE = 20
-NUM_DATA = 6
-NUM_SENSORS = 2
-
-NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
 
 
 logger = logging.getLogger("ai_engine")
@@ -26,25 +16,6 @@ formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s",
                               datefmt="%Y-%m-%d %H:%M:%S")
 ch.setFormatter(formatter)
 logger.addHandler(ch)
-
-
-PL.reset() # Reset the programmable logic
-logger.info("Programmable Logic has been reset.")
-
-ol = Overlay('design_1.bit') # Loads the FPGA bitstream
-logger.info("Overlay loaded: %s", ol)
-
-dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
-logger.info("DMA object: %s", dma)
-
-if MODEL_TYPE == "Simplified MLP":
-    input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
-else:
-    input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
-output_buffer = allocate(shape=(NUM_CLASSES,), dtype=np.float32) # To store output logit from FPGA
-
-logger.info("Input buffer allocated with shape %s", input_buffer.shape)
-logger.info("Output buffer allocated with shape %s", output_buffer.shape)
 
 
 def extract_features(input):
@@ -168,5 +139,51 @@ def main():
         print(f"Class check failed! {num_failures} mismatches found.")
         
 
+def setup_ai():
+    global DATA_LABELS, MODEL_TYPE, NUM_DATA, NUM_SENSORS
+    global input_buffer, output_buffer, dma
+
+    mode = int(input("Enter a number: "))
+
+    if mode == 1:
+        DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
+               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
+    else:
+        DATA_LABELS = ["class0", "class1", "class2", "class3", "class4", "class5", "class6", 
+                       "class7", "class8", "class9", "class10", "class11"]
+
+    NUM_CLASSES = len(DATA_LABELS)
+
+    NUM_FEATURES = 8
+    WINDOW_SIZE = 20
+    NUM_DATA = 6
+    NUM_SENSORS = 2
+
+    NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
+
+    PL.reset() # Reset the programmable logic
+    logger.info("Programmable Logic has been reset.")
+
+    if mode == 1:
+        ol = Overlay('design_1.bit') # Loads the FPGA bitstream
+    else:
+        ol = Overlay('design_2.bit')
+
+    logger.info("Overlay loaded: %s", ol)
+
+    dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
+    logger.info("DMA object: %s", dma)
+
+    if MODEL_TYPE == "Simplified MLP":
+        input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
+    else:
+        input_buffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
+    output_buffer = allocate(shape=(NUM_CLASSES,), dtype=np.float32) # To store output logit from FPGA
+
+    logger.info("Input buffer allocated with shape %s", input_buffer.shape)
+    logger.info("Output buffer allocated with shape %s", output_buffer.shape)
+
+
 if __name__ == "__main__":
+    setup_ai()
     main()
