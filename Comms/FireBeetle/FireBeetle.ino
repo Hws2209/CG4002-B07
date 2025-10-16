@@ -23,7 +23,7 @@ AES128 aes128;
 //WiFi setup
 const char* ssid = "Wenwuuu";
 const char* password = "11223344";
-const char* host = "192.168.100.64";
+const char* host = "10.111.125.64";
 const int port = 2105;  
 int packetCount = 0;
 
@@ -87,7 +87,7 @@ void setup() {
     Serial.println("NOT Acknowledged");
   }
   Serial.println("Acknowledged");
-  client.write(DEVICE_ID) 
+  client.write(DEVICE_ID);
 
   //test only, hardcode sensor value
   packet.header = 0xAA55;

@@ -32,7 +32,7 @@ class MPU {
   public:
     float avgAccel = 0;
     float avgGyro  = 0;
-    bool useFilter = false; //true;
+    bool useFilter = true;
 
     void begin() {
       Wire.begin();
