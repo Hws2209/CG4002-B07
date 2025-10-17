@@ -87,8 +87,7 @@ def ESP_client(conn, addr, ultraSocket):
       if not startRecevingFromESP:
          continue
       
-      #START RECEIVING DATAAA
-      #start_time = time.time()
+      # START RECEIVING DATAAA
       packetCount = 0
       buffer = b''
       while packetCount < NUM_OF_PACKETS:
@@ -162,11 +161,10 @@ def start_server():
   threading.Thread(target=accept_clients, daemon=True).start()
 
   #get ready to receive data
-  #msg = "action"
   msg = "a"
-  highScore = load_high_score()
   startBarrier.wait()
   gameStarted = True
+  highScore = load_high_score()
   print(f"High score: {highScore}")
   currentScore = 0
   prevRoundCorrect = False
@@ -176,11 +174,11 @@ def start_server():
         continue
 
     if not prevRoundCorrect:
-      input("press enter to start")
+      input("Press enter to start game")
 
     simonSays = 1 if random.random() < 0.8 else 0
     expectedClass = random.randint(1, 11)
-    sound_command(simonSays,expectedClass)
+    sound_command(simonSays, expectedClass)
     if not simonSays:
       expectedClass = 0
 

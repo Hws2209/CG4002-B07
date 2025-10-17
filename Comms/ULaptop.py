@@ -68,8 +68,7 @@ def ESP_client(conn, addr):
       if not startRecevingFromESP:
          continue
       
-      #START RECEIVING DATAAA
-      #start_time = time.time()
+      # START RECEIVING DATAAA
       packetCount = 0
       buffer = b''
       while packetCount < NUM_OF_PACKETS:

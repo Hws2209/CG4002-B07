@@ -356,8 +356,8 @@ def objective(trial, trainDataset, valDataset, XTensorShape):
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    val_acc = correct / total
-    return val_acc
+    valAcc = correct / total
+    return valAcc
 
 
 

@@ -103,7 +103,7 @@ def get_model_output(inputArray):
 
 def main():
     buckets = [[] for _ in range(NUM_SENSORS)]
-    goldenLogitsMatrix = np.loadtxt("goldenLogits.txt", dtype=np.float32) # Output from testing on laptop
+    goldenLogitsMatrix = np.loadtxt("golden_logits.txt", dtype=np.float32) # Output from testing on laptop
 
     sampleCount = 0
     numFailures = 0

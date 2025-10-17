@@ -143,7 +143,7 @@ def main():
         receivedMsg = ultraSocket.recv(1)
         if receivedMsg != b"a":
             continue
-        startTime= time.time()
+        startTime = time.time()
         packetCount = 0
         buffer = b''
         buckets = [[] for _ in range(numESPs)]
@@ -157,8 +157,8 @@ def main():
                     dataPacket = buffer[idx: idx + PACKET_SIZE]
                     # keep leftover for next call (if streaming)
                     buffer = buffer[idx + PACKET_SIZE:]
-                    header, device_id = struct.unpack("<H H", dataPacket[:4])
-                    print(header, device_id)
+                    header, deviceID = struct.unpack("<H H", dataPacket[:4])
+                    print(header, deviceID)
 
                     if header != 0xAA55:
                         print("incorrect header! Resync needed")
@@ -172,7 +172,7 @@ def main():
                     decryptedPayload = cipher.decrypt(encryptedPayload)
                     ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
                     print(ax, ay, az, gx, gy, gz, padding)
-                    buckets[device_id - 1].append([ax, ay, az, gx, gy, gz])
+                    buckets[deviceID - 1].append([ax, ay, az, gx, gy, gz])
 
 
                 else:
