@@ -138,6 +138,19 @@ def classify_action(inputArray):
     return predClass
 
 
+def process_buckets(buckets):
+    # Form inputArray
+    if MODEL_TYPE == "Simplified MLP":
+        inputArray = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
+    elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
+        inputArray = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
+    elif MODEL_TYPE == "CNN":
+        inputArray = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
+    else:
+        raise ValueError("Invalid MODEL_TYPE")
+    return inputArray
+
+
 def main():
     while True:
         receivedMsg = ultraSocket.recv(1)
@@ -184,18 +197,20 @@ def main():
         print("time taken to receive all data: ", time.time() - startTime)
         logger.info("Received new set of input data. Preprocessing...")
         
-        # Form inputArray
-        if MODEL_TYPE == "Simplified MLP":
-            inputArray = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
-        elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-            inputArray = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
-        elif MODEL_TYPE == "CNN":
-            inputArray = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
+        if numESPs == 2:
+            inputArray = process_buckets(buckets)
+            predClass = classify_action(inputArray)
+            ultraSocket.send(bytes([predClass]))
+        elif numESPs == 4:
+            player1 = buckets[:2]
+            player2 = buckets[2:]
+            inputArray1 = process_buckets(player1)
+            inputArray2 = process_buckets(player2)
+            predClass1 = classify_action(inputArray1)
+            predClass2 = classify_action(inputArray2)
+            ultraSocket.send(bytes([predClass1, predClass2]))
         else:
-            raise ValueError("Invalid MODEL_TYPE")
-        
-        predClass = classify_action(inputArray)
-        ultraSocket.send(bytes([predClass]))
+            raise ValueError("Unsupported numESPs value: must be 2 or 4")
 
 
 if __name__ == "__main__":
