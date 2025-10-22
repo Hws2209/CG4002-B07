@@ -30,6 +30,7 @@ clientLock = threading.Lock()
 ultraLock = threading.Lock()
 startRecevingFromESP = False
 gameStarted = False
+ultraSocket = None
 
 #broadcast msg to all esp
 def broadcast(message: str):
@@ -57,9 +58,10 @@ def sound_command(simonSays, expectedClass):
 
 
 
-def ESP_client(conn, addr, ultraSocket):
+def ESP_client(conn, addr):
   global gameStarted
   global startRecevingFromESP
+  global ultraSocket
   print(f"[NEW CONNECTION] {addr} connected.")
 
   #handshake
@@ -113,6 +115,7 @@ def ESP_client(conn, addr, ultraSocket):
 def start_server():
   global startRecevingFromESP, gameStarted
   global numPlayers, numESPs, startBarrier, msgEndBarrier
+  global ultraSocket
   
   while True:
     try:
@@ -127,6 +130,21 @@ def start_server():
   numESPs = numPlayers * 2
   startBarrier = threading.Barrier(numESPs+1)
   msgEndBarrier = threading.Barrier(numESPs+1)
+
+  #firebeetle connection
+  serverPort = 2105
+  serverSocket = socket(AF_INET, SOCK_STREAM)
+  serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+  serverSocket.bind(('0.0.0.0', serverPort))
+  serverSocket.listen()
+  # Thread for accepting clients
+  def accept_clients():
+      while True:
+        if len(connectedClients) < numESPs:
+          conn, addr = serverSocket.accept()
+          thread = threading.Thread(target=ESP_client, args=(conn, addr), daemon=True)
+          thread.start() 
+  threading.Thread(target=accept_clients, daemon=True).start()
 
   #Ultra96 connect
   ultraPort = 8887
@@ -149,28 +167,6 @@ def start_server():
   else:
     print('did not receive HELLO from Ultra')
     sys.exit(1)
-    
-
-  #firebeetle connection
-  serverPort = 2105
-  serverSocket = socket(AF_INET, SOCK_STREAM)
-  serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-  serverSocket.bind(('0.0.0.0', serverPort))
-  #serverSocket.bind(('', serverPort))
-  serverSocket.listen()
-  ##print('Waiting for firebeetle to connect')
-  ##arduinoSocket, clientAddr = serverSocket.accept()
-  ##print('A firebeetle has connected')
-
-  # Thread for accepting clients
-  def accept_clients():
-      while True:
-        if len(connectedClients) < numESPs:
-          conn, addr = serverSocket.accept()
-          thread = threading.Thread(target=ESP_client, args=(conn, addr, ultraSocket), daemon=True)
-          thread.start()
-  
-  threading.Thread(target=accept_clients, daemon=True).start()
 
   # get ready to receive data
   msg = "a"
@@ -185,12 +181,13 @@ def start_server():
   prevRoundCorrect = False
 
   while True:
-    with clientLock:
-      if len(connectedClients) < numESPs:
-        continue
 
     if not prevRoundCorrect:
       input("Press enter to start game")
+      with clientLock:
+        if len(connectedClients) < numESPs:
+          print(f"Not enough devices connected: Only {len(connectedClients)} devices connected.")
+          continue
 
     simonSays = 1 if random.random() < 0.8 else 0
     expectedClass = random.randint(1, 11)
