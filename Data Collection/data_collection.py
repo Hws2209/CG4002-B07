@@ -17,7 +17,7 @@ NUM_CLIENTS = 2 # num of esp
 
 IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
-MODEL_PATH = "model_cnn.pt"
+MODEL_PATH = "model.pt"
 DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
                "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
 

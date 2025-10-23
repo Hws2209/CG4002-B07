@@ -51,7 +51,7 @@ def setup_comms():
         print('received ACK from Laptop')
     else:
         print('did not receive ACK from Laptop')
-    sys.exit(1)
+        sys.exit(1)
 
     data = ultraSocket.recv(1)  # 4 bytes for unsigned int
     numESPs = data[0]
@@ -65,7 +65,7 @@ def setup_ai():
     DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
                    "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
     NUM_DATA = 6
-    NUM_INPUT = 8 * NUM_DATA * numESPs if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * numESPs
+    NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
 
     PL.reset() # Reset the programmable logic
     logger.info("Programmable Logic has been reset.")
