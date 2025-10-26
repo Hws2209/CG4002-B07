@@ -19,25 +19,12 @@ logger.addHandler(ch)
 
 def setup_ai():
     global DATA_LABELS, NUM_DATA, NUM_SENSORS
-    global inputBuffer, outputBuffer, dma
+    global inputBuffer, outputBuffer, dma, mode
 
-    mode = int(input("Enter a number: "))
-
-    if mode == 1:
-        DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
-                       "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
-    else:
-        DATA_LABELS = ["class0", "class1", "class2", "class3", "class4", "class5", "class6", 
-                       "class7", "class8", "class9", "class10", "class11"]
-
-    NUM_CLASSES = len(DATA_LABELS)
-
-    NUM_FEATURES = 8
-    WINDOW_SIZE = 20
+    NUM_OF_PACKETS = 20
     NUM_DATA = 6
-    NUM_SENSORS = 2
 
-    NUM_INPUT = NUM_FEATURES * NUM_DATA * NUM_SENSORS if MODEL_TYPE == "Simplified MLP" else WINDOW_SIZE * NUM_DATA * NUM_SENSORS
+    mode = int(input("Enter a mode number: "))
 
     PL.reset() # Reset the programmable logic
     logger.info("Programmable Logic has been reset.")
@@ -45,9 +32,16 @@ def setup_ai():
     if mode == 1:
         ol = Overlay('design_1.bit') # Loads the FPGA bitstream
         logger.info("Overlay loaded (design_1.bit): %s", ol)
+        DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
+                       "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
+        NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
+        NUM_SENSORS = 2
     else:
         ol = Overlay('design_2.bit')
         logger.info("Overlay loaded (design_2.bit): %s", ol)
+        DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
+        NUM_INPUT = 8 * NUM_DATA * 4 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 4
+        NUM_SENSORS = 4
 
     dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
     logger.info("DMA object: %s", dma)
@@ -56,7 +50,7 @@ def setup_ai():
         inputBuffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
     else:
         inputBuffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
-    outputBuffer = allocate(shape=(NUM_CLASSES,), dtype=np.float32) # To store output logit from FPGA
+    outputBuffer = allocate(shape=(len(DATA_LABELS),), dtype=np.float32) # To store output logit from FPGA
 
     logger.info("Input buffer allocated with shape %s", inputBuffer.shape)
     logger.info("Output buffer allocated with shape %s", outputBuffer.shape)
@@ -103,7 +97,7 @@ def get_model_output(inputArray):
 
 def main():
     buckets = [[] for _ in range(NUM_SENSORS)]
-    goldenLogitsMatrix = np.loadtxt("golden_logits.txt", dtype=np.float32) # Output from testing on laptop
+    goldenLogitsMatrix = np.loadtxt(f"golden_logits_{mode}.txt", dtype=np.float32) # Output from testing on laptop
 
     sampleCount = 0
     numFailures = 0
@@ -154,7 +148,7 @@ def main():
         continueSignal = input("Continue? Y/N: ")
         return continueSignal.upper() == "Y"
     
-    with open("data.txt", "r") as f:
+    with open(f"data_{mode}.txt", "r") as f:
         for line in f:
             line = line.strip()
             if not line: # Empty line indicates end of a matrix

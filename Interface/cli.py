@@ -3,8 +3,6 @@ import random
 import time
 import pygame
 
-HIGH_SCORE_FILE = "high_score.txt"
-
 
 def play_audio(file):
     if not pygame.mixer.get_init():
@@ -15,17 +13,17 @@ def play_audio(file):
     while pygame.mixer.music.get_busy():
         pygame.time.Clock().tick(10)
 
-def load_high_score():
-    if not os.path.exists(HIGH_SCORE_FILE):
-        with open(HIGH_SCORE_FILE, "w") as f:
+def load_high_score(file):
+    if not os.path.exists(file):
+        with open(file, "w") as f:
             f.write("0")
         return 0
-    with open(HIGH_SCORE_FILE, "r") as f:
+    with open(file, "r") as f:
         return int(f.read().strip() or 0)
 
 
-def save_high_score(score):
-    with open(HIGH_SCORE_FILE, "w") as f:
+def save_high_score(score, file):
+    with open(file, "w") as f:
         f.write(str(score))
 
 
@@ -59,7 +57,7 @@ def play_game(highScore):
             print(f"Final score: {currentScore}")
             if currentScore > highScore:
                 highScore = currentScore
-                save_high_score(highScore)
+                save_high_score(highScore, "high_score.txt")
             print(f"High score: {highScore}")
             break
 
@@ -67,7 +65,7 @@ def play_game(highScore):
 
 
 def main():
-    highScore = load_high_score()
+    highScore = load_high_score("high_score.txt")
     print(f"High score: {highScore}")
     
     while True:

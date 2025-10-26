@@ -12,8 +12,6 @@ from cli import *
 PACKET_SIZE = 20 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
-DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
-               "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
 
 #encryption data
 key = bytes([
@@ -43,18 +41,24 @@ def broadcast(message: str):
                 pass
 
 # Play audio file
-def sound_command(simonSays, expectedClass):
+def sound_command(simonSays, expectedClass, mode):
   simonFile = f"./../Interface/audio/simon_says.wav"
-  audioFile = f"./../Interface/audio/{expectedClass}.wav"
+  if mode == 1:
+    audioFile = f"./../Interface/audio/{expectedClass}.wav"
+  else:
+    audioFile = f"./../Interface/audio/{mode}{expectedClass}.wav"
+  
   if simonSays:
     if os.path.exists(simonFile):
-        play_audio(simonFile)
+      play_audio(simonFile)
     else:
-          print(f"(Audio file {simonFile} missing — skipping sound)")
+      print(f"Audio file {simonFile} missing")
+      sys.exit(1)
   if os.path.exists(audioFile):
-      play_audio(audioFile)
+    play_audio(audioFile)
   else:
-        print(f"(Audio file {audioFile} missing — skipping sound)")
+    print(f"Audio file {audioFile} missing")
+    sys.exit(1)
 
 
 
@@ -65,7 +69,7 @@ def ESP_client(conn, addr):
   print(f"[NEW CONNECTION] {addr} connected.")
 
   #handshake
-  message = conn.recv(18) #read upto number of bytes
+  message = conn.recv(18) #read up to number of bytes
   if message == b"HELLO":
     print(f"received HELLO from firebeetle {addr} ")
     msg = "ACK"
@@ -114,7 +118,7 @@ def ESP_client(conn, addr):
 
 def start_server():
   global startRecevingFromESP, gameStarted
-  global numPlayers, numESPs, startBarrier, msgEndBarrier
+  global startBarrier, msgEndBarrier
   global ultraSocket
   
   while True:
@@ -126,6 +130,25 @@ def start_server():
         print("Invalid input. Please enter 1 or 2.")
     except ValueError:
       print("Invalid input. Please enter a number (1 or 2).")
+
+  if numPlayers == 2:
+    while True:
+      try:
+        mode = int(input("Game mode (1 - Versus or 2 - Collab): "))
+        if mode in (1, 2):
+          break
+        else:
+          print("Invalid input. Please enter 1 or 2.")
+      except ValueError:
+        print("Invalid input. Please enter a number (1 or 2).")
+  else:
+     mode = 1
+
+  if mode == 1:
+    DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
+                   "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
+  else:
+    DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
 
   numESPs = numPlayers * 2
   startBarrier = threading.Barrier(numESPs+1)
@@ -157,15 +180,23 @@ def start_server():
   ultraSocket, ultraAddr = ultraSocket.accept()
   print('ultra has connected')
   #handshake
-  message = ultraSocket.recv(10) #read upto number of bytes
+  message = ultraSocket.recv(10) #read up to number of bytes
   print(message)
   if message == b"HELLO":
     print('received HELLO from ultra')
     msg = "ACK"
     ultraSocket.send(msg.encode())
-    ultraSocket.send(bytes([numESPs]))
+    ultraSocket.send(bytes([numESPs, mode]))
+
+    print("Waiting for Ultra96 to load bitstream")
+    readyMsg = ultraSocket.recv(10)
+    if readyMsg == b"READY":
+      print("Ultra96 is ready!")
+    else:
+       print("Did not receive READY from Ultra")
+       sys.exit(1)
   else:
-    print('did not receive HELLO from Ultra')
+    print("Did not receive HELLO from Ultra")
     sys.exit(1)
 
   # get ready to receive data
@@ -173,15 +204,15 @@ def start_server():
   startBarrier.wait()
   gameStarted = True
 
-  if numPlayers == 1:
-    highScore = load_high_score()
+  if numPlayers == 1 or (numPlayers == 2 and mode == 2):
+    highScoreFile = f"high_score_{numPlayers}.txt"
+    highScore = load_high_score(highScoreFile)
     print(f"High score: {highScore}")
   
   currentScore = 0
   prevRoundCorrect = False
 
   while True:
-
     if not prevRoundCorrect:
       input("Press enter to start game")
       with clientLock:
@@ -189,9 +220,13 @@ def start_server():
           print(f"Not enough devices connected: Only {len(connectedClients)} devices connected.")
           continue
 
+    if mode == 1:
+      expectedClass = random.randint(1, 11)
+    else:
+      expectedClass = random.randint(1, 5)
+    
     simonSays = 1 if random.random() < 0.8 else 0
-    expectedClass = random.randint(1, 11)
-    sound_command(simonSays, expectedClass)
+    sound_command(simonSays, expectedClass, mode)
     if not simonSays:
       expectedClass = 0
 
@@ -201,13 +236,16 @@ def start_server():
     ultraSocket.send(msg.encode())
     msgEndBarrier.wait()
     startRecevingFromESP = False
-    print("time taken:", time.time() - startTime)
+    espDoneTime = time.time()
+    print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
 
-    if numPlayers == 1:
+    if numPlayers == 1 or (numPlayers == 2 and mode == 2):
       data = ultraSocket.recv(1)
+      ultraDoneTime = time.time()
       predictedClass = data[0]
       print("Expected Action:", DATA_LABELS[expectedClass])
       print("Action Detected:", DATA_LABELS[predictedClass])
+      print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
       if predictedClass == expectedClass:
         currentScore += 1
@@ -220,18 +258,20 @@ def start_server():
         print(f"Final score: {currentScore}")
         if currentScore > highScore:
           highScore = currentScore
-          save_high_score(highScore)
+          save_high_score(highScore, highScoreFile)
         print(f"High score: {highScore}")
         currentScore = 0
         prevRoundCorrect = False
 
-    elif numPlayers == 2:
+    else:
       data = ultraSocket.recv(2)
+      ultraDoneTime = time.time()
       player1Class, player2Class = data[0], data[1]
 
       print("Expected Action:", DATA_LABELS[expectedClass])
       print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
       print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
+      print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
       if player1Class == expectedClass and player2Class == expectedClass:
         currentScore += 1

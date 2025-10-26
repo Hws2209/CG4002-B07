@@ -12,12 +12,10 @@ import optuna
 
 MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
-DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
-               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
-NUM_CLASSES = len(DATA_LABELS)
 NUM_DATA = 6
 WINDOW_SIZE = 20
 NUM_SENSORS = 2
+NUM_CLASSES = 12
 
 DATA = "Data2"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
@@ -39,7 +37,7 @@ def generate_dummy_data(dataFile, labelFile):
     os.makedirs(os.path.dirname(labelFile), exist_ok=True)
 
     with open(dataFile, "w") as df, open(labelFile, "w") as lf:
-        for labelIndex, label in enumerate(DATA_LABELS):
+        for labelIndex in range(NUM_CLASSES):
             for _ in range(NUM_DUMMY_PER_LABEL):
                 lf.write(str(labelIndex) + "\n")
 

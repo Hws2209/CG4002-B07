@@ -13,13 +13,20 @@ from model_definitions import *
 PACKET_SIZE = 20 # bytes
 NUM_OF_PACKETS = 20 # expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
-NUM_CLIENTS = 2 # num of esp
+
+MODE = 1
+if MODE == 1:
+  NUM_CLIENTS = 2 # num of esp
+  DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
+                 "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
+else:
+  NUM_CLIENTS = 4
+  DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
 
 IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
 MODEL_PATH = "model.pt"
-DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
-               "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
+
 
 #encryption data
 key = bytes([
