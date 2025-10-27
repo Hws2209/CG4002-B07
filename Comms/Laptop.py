@@ -67,50 +67,53 @@ def ESP_client(conn, addr):
   global startRecevingFromESP
   global ultraSocket
   global connectedClients
-  #print(f"[NEW CONNECTION] {addr} connected.")
 
   #handshake
-  message = conn.recv(5) #read upto number of bytes
+  message = conn.recv(5)
   if message == b"HELLO":
-    #print(f"received HELLO from firebeetle {addr} ")
     msg = "ACK"
     conn.send(msg.encode())
     data = conn.recv(1)  
     deviceID = data[0]
     print("DeviceID Connected:", deviceID)
-  else:
-    print('did not receive HELLO')
 
-  with clientLock:
-    connectedClients.append(conn)
-  if not gameStarted:
-    startBarrier.wait()
-  # Main receive loop
-  while True:
-    try:
-      if not startRecevingFromESP:
-         continue
-      
-      # START RECEIVING DATAAA
-      packetCount = 0
-      buffer = b''
-      while packetCount < NUM_OF_PACKETS:
-        buffer = conn.recv(PACKET_SIZE)
-        if not buffer:
+    if not gameStarted:
+      startBarrier.wait()
+    # Main receive loop
+    while True:
+      try:
+        if not startRecevingFromESP:
+          continue
+        
+        packetCount = 0
+        buffer = b''
+        while packetCount < NUM_OF_PACKETS:
+          buffer = conn.recv(PACKET_SIZE)
+          if not buffer:
             break
-        print(buffer.hex())
-        #dataPacket = cipher.decrypt(buffer)
-        dataPacket = buffer
-        print(dataPacket.hex())
-        packetCount += 1
-        print(packetCount)
-        with ultraLock:
-          ultraSocket.send(dataPacket) #send to ultra96
+          #ensure amt of data received is at least packet_sized
+          while len(buffer) >= PACKET_SIZE:
+            idx = buffer.find(HEADER)
+            if idx != -1 and len(buffer) >= PACKET_SIZE:
+              # extract aligned packet
+              dataPacket = buffer[idx: idx + PACKET_SIZE]
+              # keep leftover for next call (if streaming)
+              buffer = buffer[idx + PACKET_SIZE:]
+              print(dataPacket.hex())
+              packetCount += 1
+              print(packetCount)
+              with ultraLock:
+                ultraSocket.send(dataPacket) #send to ultra96
 
-      msgEndBarrier.wait()
-    #except ConnectionResetError:
-    except Exception:
+        msgEndBarrier.wait()
+      except threading.BrokenBarrierError:
+        #need to flush data?
+        continue
+      except ConnectionResetError:
         break
+
+  else: #if handshake is not successful
+    print('did not receive HELLO')
 
   print(f"[DISCONNECTED] {addr}")
   with clientLock:
@@ -174,6 +177,8 @@ def start_server():
           conn, addr = serverSocket.accept()
           thread = threading.Thread(target=ESP_client, args=(conn, addr), daemon=True)
           thread.start() 
+          with clientLock:
+            connectedClients.append(conn)
   threading.Thread(target=accept_clients, daemon=True).start()
 
   #Ultra96 connect
@@ -182,7 +187,6 @@ def start_server():
   ultraSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
   ultraSocket.bind(('127.0.0.1', ultraPort))
   ultraSocket.listen()
-  print('Waiting for Ultra to connect')
 
   ultraSocket, ultraAddr = ultraSocket.accept()
   print('ultra has connected')
@@ -196,7 +200,7 @@ def start_server():
     ultraSocket.send(bytes([numESPs, mode]))
 
     print("Waiting for Ultra96 to load bitstream")
-    readyMsg = ultraSocket.recv(10)
+    readyMsg = ultraSocket.recv(5)
     if readyMsg == b"READY":
       print("Ultra96 is ready!")
     else:
@@ -220,86 +224,97 @@ def start_server():
   prevRoundCorrect = False
 
   while True:
-    if not prevRoundCorrect:
-      input("Press enter to start game")
-      with clientLock:
-        if len(connectedClients) < numESPs:
-          print(f"Not enough devices connected: Only {len(connectedClients)} devices connected.")
-          continue
+    try:
+      if not prevRoundCorrect:
+        input("Press enter to start game")
+        with clientLock:
+          if len(connectedClients) < numESPs:
+            print(f"Not enough devices connected: Only {len(connectedClients)} devices connected.")
+            continue
 
-    if mode == 1:
-      expectedClass = random.randint(1, 11)
-    else:
-      expectedClass = random.randint(1, 5)
-    
-    simonSays = 1 if random.random() < 0.8 else 0
-    sound_command(simonSays, expectedClass, mode)
-    if not simonSays:
-      expectedClass = 0
-
-    startTime = time.time()
-    startRecevingFromESP = True
-    broadcast(msg)
-    ultraSocket.send(msg.encode())
-    msgEndBarrier.wait()
-    startRecevingFromESP = False
-    espDoneTime = time.time()
-    print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
-
-    if numPlayers == 1 or (numPlayers == 2 and mode == 2):
-      data = ultraSocket.recv(1)
-      ultraDoneTime = time.time()
-      predictedClass = data[0]
-      print("Expected Action:", DATA_LABELS[expectedClass])
-      print("Action Detected:", DATA_LABELS[predictedClass])
-      print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
-
-      if predictedClass == expectedClass:
-        currentScore += 1
-        print(f"Correct! Current score: {currentScore}")
-        prevRoundCorrect = True
-        play_audio(f"./../Interface/audio/beep.wav")
-        
+      if mode == 1:
+        expectedClass = random.randint(1, 11)
       else:
-        print("\nGame over!")
-        print(f"Final score: {currentScore}")
-        if currentScore > highScore:
-          highScore = currentScore
-          save_high_score(highScore, highScoreFile)
-        print(f"High score: {highScore}")
-        currentScore = 0
-        prevRoundCorrect = False
+        expectedClass = random.randint(1, 5)
+      
+      simonSays = 1 if random.random() < 0.8 else 0
+      sound_command(simonSays, expectedClass, mode)
+      if not simonSays:
+        expectedClass = 0
 
-    else:
-      data = ultraSocket.recv(2)
-      ultraDoneTime = time.time()
-      player1Class, player2Class = data[0], data[1]
+      startTime = time.time()
+      startRecevingFromESP = True
+      msg = "a"
+      broadcast(msg)
+      ultraSocket.send(msg.encode())
+      msgEndBarrier.wait(timeout=10)
+      startRecevingFromESP = False
+      espDoneTime = time.time()
+      print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
 
-      print("Expected Action:", DATA_LABELS[expectedClass])
-      print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
-      print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
-      print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
+      if numPlayers == 1 or (numPlayers == 2 and mode == 2):
+        data = ultraSocket.recv(1)
+        ultraDoneTime = time.time()
+        predictedClass = data[0]
+        print("Expected Action:", DATA_LABELS[expectedClass])
+        print("Action Detected:", DATA_LABELS[predictedClass])
+        print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
-      if player1Class == expectedClass and player2Class == expectedClass:
-        currentScore += 1
-        print(f"Both correct! Current score: {currentScore}")
-        play_audio(f"./../Interface/audio/beep.wav")
-        prevRoundCorrect = True
-
-      elif player1Class != expectedClass and player2Class == expectedClass:
-        print("\nPlayer 1 made a mistake! Player 2 wins!")
-        currentScore = 0
-        prevRoundCorrect = False
-
-      elif player2Class != expectedClass and player1Class == expectedClass:
-        print("\nPlayer 2 made a mistake! Player 1 wins!")
-        currentScore = 0
-        prevRoundCorrect = False
+        if predictedClass == expectedClass:
+          currentScore += 1
+          print(f"Correct! Current score: {currentScore}")
+          prevRoundCorrect = True
+          play_audio(f"./../Interface/audio/beep.wav")
+          
+        else:
+          print("\nGame over!")
+          print(f"Final score: {currentScore}")
+          if currentScore > highScore:
+            highScore = currentScore
+            save_high_score(highScore, highScoreFile)
+          print(f"High score: {highScore}")
+          currentScore = 0
+          prevRoundCorrect = False
 
       else:
-        print("\nBoth players made a mistake! No winner this round.")
-        currentScore = 0
-        prevRoundCorrect = False
+        data = ultraSocket.recv(2)
+        ultraDoneTime = time.time()
+        player1Class, player2Class = data[0], data[1]
+
+        print("Expected Action:", DATA_LABELS[expectedClass])
+        print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
+        print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
+        print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
+
+        if player1Class == expectedClass and player2Class == expectedClass:
+          currentScore += 1
+          print(f"Both correct! Current score: {currentScore}")
+          play_audio(f"./../Interface/audio/beep.wav")
+          prevRoundCorrect = True
+
+        elif player1Class != expectedClass and player2Class == expectedClass:
+          print("\nPlayer 1 made a mistake! Player 2 wins!")
+          currentScore = 0
+          prevRoundCorrect = False
+
+        elif player2Class != expectedClass and player1Class == expectedClass:
+          print("\nPlayer 2 made a mistake! Player 1 wins!")
+          currentScore = 0
+          prevRoundCorrect = False
+
+        else:
+          print("\nBoth players made a mistake! No winner this round.")
+          currentScore = 0
+          prevRoundCorrect = False
+    except threading.BrokenBarrierError:
+      print("Message timeout occurred, cancelling this round")
+      msgEndBarrier.abort()
+
+      msg = "ERROR"
+      with ultraLock:
+        ultraSocket.send(msg.encode())
+      msgEndBarrier.reset()
+
 
 if __name__ == "__main__":
     start_server()

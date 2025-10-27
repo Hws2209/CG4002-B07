@@ -20,6 +20,9 @@ formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s",
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
+class msgTimeOutError (Exception):
+    pass
+
 
 def setup_comms():
     global PACKET_SIZE, NUM_OF_PACKETS, HEADER
@@ -164,62 +167,68 @@ def process_buckets(buckets):
 
 def main():
     while True:
-        receivedMsg = ultraSocket.recv(1)
-        if receivedMsg != b"a":
-            continue
-        startTime = time.time()
-        packetCount = 0
-        buffer = b''
-        buckets = [[] for _ in range(numESPs)]
+        try:
+            receivedMsg = ultraSocket.recv(1)
+            if receivedMsg != b"a":
+                continue
+            startTime = time.time()
+            packetCount = 0
+            buffer = b''
+            buckets = [[] for _ in range(numESPs)]
 
-        while packetCount < (NUM_OF_PACKETS * numESPs):
-            buffer = ultraSocket.recv(PACKET_SIZE) # read up to number of bytes
-            while len(buffer) >= PACKET_SIZE:
-                idx = buffer.find(HEADER)
-                if idx != -1 and len(buffer) >= PACKET_SIZE:
-                    # extract aligned packet
-                    dataPacket = buffer[idx: idx + PACKET_SIZE]
-                    # keep leftover for next call (if streaming)
-                    buffer = buffer[idx + PACKET_SIZE:]
-                    header, deviceID = struct.unpack("<H H", dataPacket[:4])
-                    print(header, deviceID)
+            while packetCount < (NUM_OF_PACKETS * numESPs):
+                buffer = ultraSocket.recv(PACKET_SIZE) # read up to number of bytes
+                if buffer == b"ERROR":
+                    print('Cancelling Ultra current round')
+                    raise msgTimeOutError()
+                while len(buffer) >= PACKET_SIZE:
+                    idx = buffer.find(HEADER)
+                    if idx != -1 and len(buffer) >= PACKET_SIZE:
+                        # extract aligned packet
+                        dataPacket = buffer[idx: idx + PACKET_SIZE]
+                        # keep leftover for next call (if streaming)
+                        buffer = buffer[idx + PACKET_SIZE:]
+                        header, deviceID = struct.unpack("<H H", dataPacket[:4])
+                        print(header, deviceID)
 
-                    if header != 0xAA55:
-                        print("incorrect header! Resync needed")
+                        if header != 0xAA55:
+                            print("incorrect header! Resync needed")
+                            packetCount += 1
+                            continue
+
                         packetCount += 1
+                        print(packetCount)
+
+                        encryptedPayload = dataPacket[4:]
+                        decryptedPayload = cipher.decrypt(encryptedPayload)
+                        ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
+                        print(ax, ay, az, gx, gy, gz, padding)
+                        buckets[deviceID - 1].append([ax, ay, az, gx, gy, gz])
+
+
+                    else:
+                        print("not enough packet or header not found")
                         continue
+                
 
-                    packetCount += 1
-                    print(packetCount)
-
-                    encryptedPayload = dataPacket[4:]
-                    decryptedPayload = cipher.decrypt(encryptedPayload)
-                    ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
-                    print(ax, ay, az, gx, gy, gz, padding)
-                    buckets[deviceID - 1].append([ax, ay, az, gx, gy, gz])
-
-
-                else:
-                    print("not enough packet or header not found")
-                    continue
+            # Received all packets of data
+            print("time taken to receive all data: ", time.time() - startTime)
+            logger.info("Received new set of input data. Preprocessing...")
             
-
-        # Received all packets of data
-        print("time taken to receive all data: ", time.time() - startTime)
-        logger.info("Received new set of input data. Preprocessing...")
-        
-        if numESPs == 2 or (numESPs == 4 and mode == 2):
-            inputArray = process_buckets(buckets)
-            predClass = classify_action(inputArray)
-            ultraSocket.send(bytes([predClass]))
-        else:
-            player1 = buckets[:2]
-            player2 = buckets[2:]
-            inputArray1 = process_buckets(player1)
-            inputArray2 = process_buckets(player2)
-            predClass1 = classify_action(inputArray1)
-            predClass2 = classify_action(inputArray2)
-            ultraSocket.send(bytes([predClass1, predClass2]))
+            if numESPs == 2 or (numESPs == 4 and mode == 2):
+                inputArray = process_buckets(buckets)
+                predClass = classify_action(inputArray)
+                ultraSocket.send(bytes([predClass]))
+            else:
+                player1 = buckets[:2]
+                player2 = buckets[2:]
+                inputArray1 = process_buckets(player1)
+                inputArray2 = process_buckets(player2)
+                predClass1 = classify_action(inputArray1)
+                predClass2 = classify_action(inputArray2)
+                ultraSocket.send(bytes([predClass1, predClass2]))
+        except msgTimeOutError: 
+            continue
 
 
 if __name__ == "__main__":
