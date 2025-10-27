@@ -23,7 +23,7 @@ logger.addHandler(ch)
 
 def setup_comms():
     global PACKET_SIZE, NUM_OF_PACKETS, HEADER
-    global cipher, ultraSocket, numESPs
+    global cipher, ultraSocket, numESPs, mode
 
     PACKET_SIZE = 20 #bytes
     NUM_OF_PACKETS = 20 #expected num of packets per action
@@ -51,27 +51,35 @@ def setup_comms():
         print('received ACK from Laptop')
     else:
         print('did not receive ACK from Laptop')
-    sys.exit(1)
+        sys.exit(1)
 
-    data = ultraSocket.recv(1)  # 4 bytes for unsigned int
+    data = ultraSocket.recv(2)
     numESPs = data[0]
+    mode = data[1]
     print("Number of ESPs:", numESPs)
+    print("Game mode:", mode)
 
 
 def setup_ai():
     global DATA_LABELS, NUM_DATA
     global inputBuffer, outputBuffer, dma
-
-    DATA_LABELS = ["idle", "raise_left", "raise_right", "raise_both", "wave_left", "wave_right", 
-                   "wave_both", "circle_left", "circle_right", "circle_both", "clap", "jump"]
+    
     NUM_DATA = 6
-    NUM_INPUT = 8 * NUM_DATA * numESPs if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * numESPs
 
     PL.reset() # Reset the programmable logic
     logger.info("Programmable Logic has been reset.")
 
-    ol = Overlay('design_1.bit') # Loads the FPGA bitstream
-    logger.info("Overlay loaded (design_1.bit): %s", ol)
+    if mode == 1:
+        ol = Overlay('design_1.bit') # Loads the FPGA bitstream
+        logger.info("Overlay loaded (design_1.bit): %s", ol)
+        DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
+                       "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
+        NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
+    else:
+        ol = Overlay('design_2.bit')
+        logger.info("Overlay loaded (design_2.bit): %s", ol)
+        DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
+        NUM_INPUT = 8 * NUM_DATA * 4 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 4
 
     dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
     logger.info("DMA object: %s", dma)
@@ -84,6 +92,9 @@ def setup_ai():
 
     logger.info("Input buffer allocated with shape %s", inputBuffer.shape)
     logger.info("Output buffer allocated with shape %s", outputBuffer.shape)
+
+    message = "READY"
+    ultraSocket.send(message.encode())
 
 
 def extract_features(input):
@@ -197,11 +208,11 @@ def main():
         print("time taken to receive all data: ", time.time() - startTime)
         logger.info("Received new set of input data. Preprocessing...")
         
-        if numESPs == 2:
+        if numESPs == 2 or (numESPs == 4 and mode == 2):
             inputArray = process_buckets(buckets)
             predClass = classify_action(inputArray)
             ultraSocket.send(bytes([predClass]))
-        elif numESPs == 4:
+        else:
             player1 = buckets[:2]
             player2 = buckets[2:]
             inputArray1 = process_buckets(player1)
@@ -209,8 +220,6 @@ def main():
             predClass1 = classify_action(inputArray1)
             predClass2 = classify_action(inputArray2)
             ultraSocket.send(bytes([predClass1, predClass2]))
-        else:
-            raise ValueError("Unsupported numESPs value: must be 2 or 4")
 
 
 if __name__ == "__main__":
