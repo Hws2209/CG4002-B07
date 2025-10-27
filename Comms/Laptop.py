@@ -62,17 +62,18 @@ def ESP_client(conn, addr):
   global gameStarted
   global startRecevingFromESP
   global ultraSocket
-  print(f"[NEW CONNECTION] {addr} connected.")
+  global connectedClients
+  #print(f"[NEW CONNECTION] {addr} connected.")
 
   #handshake
-  message = conn.recv(18) #read upto number of bytes
+  message = conn.recv(5) #read upto number of bytes
   if message == b"HELLO":
-    print(f"received HELLO from firebeetle {addr} ")
+    #print(f"received HELLO from firebeetle {addr} ")
     msg = "ACK"
     conn.send(msg.encode())
     data = conn.recv(1)  
     deviceID = data[0]
-    print("DeviceID:", deviceID)
+    print("DeviceID Connected:", deviceID)
   else:
     print('did not receive HELLO')
 
@@ -103,7 +104,8 @@ def ESP_client(conn, addr):
           ultraSocket.send(dataPacket) #send to ultra96
 
       msgEndBarrier.wait()
-    except ConnectionResetError:
+    #except ConnectionResetError:
+    except Exception:
         break
 
   print(f"[DISCONNECTED] {addr}")
@@ -116,6 +118,7 @@ def start_server():
   global startRecevingFromESP, gameStarted
   global numPlayers, numESPs, startBarrier, msgEndBarrier
   global ultraSocket
+  global connectedClients
   
   while True:
     try:
@@ -128,6 +131,7 @@ def start_server():
       print("Invalid input. Please enter a number (1 or 2).")
 
   numESPs = numPlayers * 2
+  print("no. of ESPs to expect: ", numESPs)
   startBarrier = threading.Barrier(numESPs+1)
   msgEndBarrier = threading.Barrier(numESPs+1)
 
@@ -139,8 +143,11 @@ def start_server():
   serverSocket.listen()
   # Thread for accepting clients
   def accept_clients():
+      global connectedClients
       while True:
         if len(connectedClients) < numESPs:
+          print("len of connectecClients: ", len(connectedClients))
+          print("no. of ESPs to expect: ", numESPs)
           conn, addr = serverSocket.accept()
           thread = threading.Thread(target=ESP_client, args=(conn, addr), daemon=True)
           thread.start() 
@@ -227,8 +234,8 @@ def start_server():
 
     elif numPlayers == 2:
       data = ultraSocket.recv(2)
-      player1Class, player2Class = data[0], data[1]
-
+      player1Class = data[0]
+      player2Class = data[1]
       print("Expected Action:", DATA_LABELS[expectedClass])
       print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
       print(f"Player 2 Action: {DATA_LABELS[player2Class]}")

@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #define SEND_DURATION 2000 
-#define DEVICE_ID 1
+#define DEVICE_ID 3
 //#include <ESPping.h>     // Install "ESPping" library
 
 //key[16] cotain 16 byte key(128 bit) for encryption
@@ -21,9 +21,11 @@ AES128 aes128;
 
 
 //WiFi setup
-const char* ssid = "Wenwuuu";
-const char* password = "11223344";
-const char* host = "10.111.125.64";
+//const char* ssid = "Wenwuuu";
+//const char* password = "11223344";
+const char* ssid = "Hws";
+const char* password = "22092003";
+const char* host = "10.248.49.64";
 const int port = 2105;  
 int packetCount = 0;
 
