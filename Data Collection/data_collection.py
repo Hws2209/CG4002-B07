@@ -14,18 +14,18 @@ PACKET_SIZE = 20 # bytes
 NUM_OF_PACKETS = 20 # expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
-MODE = 1
+MODE = 2
 if MODE == 1:
   NUM_CLIENTS = 2 # num of esp
   DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
                  "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
 else:
   NUM_CLIENTS = 4
-  DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
+  DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
 IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
-MODEL_PATH = "model.pt"
+MODEL_PATH = "model_collab.pt"
 
 
 #encryption data
@@ -214,9 +214,16 @@ def start_server():
         output = model(inputTensor)
       print("inference time: ", time.time() - startTime)
       print("MODEL OUTPUT:", output)
-      predIdx = torch.argmax(output, dim=1).item()
-      predLabel = DATA_LABELS[predIdx]
-      print(f"PREDICTED CLASS: {predIdx} ({predLabel})")
+
+      maxLogitTensor, predClassTensor = torch.max(output, dim=1)
+      maxLogit = maxLogitTensor.item()
+      predClass = predClassTensor.item()
+
+      if maxLogit >= 4:
+        print(f"PREDICTED CLASS: {predClass} ({DATA_LABELS[predClass]})")
+      else:
+        predClass = -1
+        print(f"PREDICTED CLASS: {predClass}")
 
       collectedData.clear()
       continue # skip to next round

@@ -17,7 +17,7 @@ WINDOW_SIZE = 20
 NUM_SENSORS = 2
 NUM_CLASSES = 12
 
-DATA = "Data2"
+DATA = "Data3"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
@@ -180,7 +180,7 @@ def generate_c_headers():
             f.write(f"static const float {varName}[] = {{\n")
             flat = array.flatten()
             for i, val in enumerate(flat):
-                f.write(f"{val:.6f}f, ")
+                f.write(f"{val}f, ")
                 if (i+1) % 8 == 0:
                     f.write("\n")
             f.write("\n};\n\n")

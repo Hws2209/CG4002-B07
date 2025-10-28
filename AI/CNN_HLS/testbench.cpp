@@ -10,10 +10,10 @@
 #include <stdio.h>
 #include <hls_stream.h>
 
-#define NUM_CHANNELS 6
 #define NUM_SENSORS 2
 #define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
-#define NUM_CLASSES 12 // TBC
+#define NUM_CHANNELS 6
+#define NUM_CLASSES 12
 
 typedef int32_t input_t;
 typedef float float_t;
@@ -58,8 +58,11 @@ int main() {
     std::vector<int> golden_pred_classes;
     int sample_count = 0;
     int num_failures = 0;
+    int num_logit_mismatches = 0;
 
     auto process_sample = [&]() {
+        sample_count++;
+
         // Concatenate buckets
         std::vector<std::vector<int>> concatenated;
         for (auto &b : buckets) {
@@ -113,9 +116,19 @@ int main() {
         // Compare predicted class
         int pred_class = argmax(output);
         int golden_class = argmax(golden_logits);
-        if (pred_class != golden_class) num_failures++;
+        if (pred_class != golden_class) {
+            num_failures++;
+            std::cout << "Mismatch at sample " << sample_count << ": predicted class = " 
+              << pred_class << ", golden class = " << golden_class << "\n";
+        }
 
-        sample_count++;
+        for (int c = 0; c < NUM_CLASSES; c++) {
+            if (std::fabs(output[c] - golden_logits[c]) > 0.1f) {
+                num_logit_mismatches++;
+                std::cout << "Mismatch at sample " << sample_count << ": output logit = " 
+                << output[c] << ", golden logit = " << golden_logits[c] << "\n";
+            }
+        }
     };
 
     while (std::getline(data_file, line)) {
@@ -159,6 +172,12 @@ int main() {
         std::cout << "Class check passed! All predicted classes match the golden.\n";
     else
         std::cout << "Class check failed! " << num_failures << " mismatches found.\n";
+    
+    if (num_logit_mismatches == 0)
+        std::cout << "Logit check passed! All logits within ±0.1 tolerance.\n";
+    else
+        std::cout << "Logit check failed! " << num_logit_mismatches
+                  << " values exceeded ±0.1 difference.\n";
 
     return (num_failures == 0) ? 0 : 1;
 }
