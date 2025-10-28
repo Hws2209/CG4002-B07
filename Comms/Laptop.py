@@ -154,7 +154,7 @@ def start_server():
     DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
                    "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
   else:
-    DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
+    DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
   numESPs = numPlayers * 2
   print("no. of ESPs to expect: ", numESPs)
@@ -235,7 +235,7 @@ def start_server():
       if mode == 1:
         expectedClass = random.randint(1, 11)
       else:
-        expectedClass = random.randint(1, 5)
+        expectedClass = random.randint(1, 6)
       
       simonSays = 1 if random.random() < 0.8 else 0
       sound_command(simonSays, expectedClass, mode)

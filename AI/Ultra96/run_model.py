@@ -81,7 +81,7 @@ def setup_ai():
     else:
         ol = Overlay('design_2.bit')
         logger.info("Overlay loaded (design_2.bit): %s", ol)
-        DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
+        DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
         NUM_INPUT = 8 * NUM_DATA * 4 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 4
 
     dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM

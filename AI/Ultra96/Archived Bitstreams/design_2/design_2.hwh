@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
-<EDKSYSTEM EDWVERSION="1.2" TIMESTAMP="Tue Oct 28 17:02:08 2025" VIVADOVERSION="2025.1">
+<EDKSYSTEM EDWVERSION="1.2" TIMESTAMP="Tue Oct 28 20:43:34 2025" VIVADOVERSION="2025.1">
 
   <SYSTEMINFO ARCH="zynquplus" DEVICE="xczu3eg" NAME="design_1" PACKAGE="sbva484" SPEEDGRADE="-2"/>
 
@@ -2460,14 +2460,14 @@
         <PERIPHERAL INSTANCE="cnn_forward_0"/>
       </PERIPHERALS>
     </MODULE>
-    <MODULE COREREVISION="2114323600" FULLNAME="/cnn_forward_0" HWVERSION="1.0" INSTANCE="cnn_forward_0" IPTYPE="PERIPHERAL" IS_ENABLE="1" MODCLASS="PERIPHERAL" MODTYPE="cnn_forward" VLNV="xilinx.com:hls:cnn_forward:1.0">
+    <MODULE COREREVISION="2114323560" FULLNAME="/cnn_forward_0" HWVERSION="1.0" INSTANCE="cnn_forward_0" IPTYPE="PERIPHERAL" IS_ENABLE="1" MODCLASS="PERIPHERAL" MODTYPE="cnn_forward" VLNV="xilinx.com:hls:cnn_forward:1.0">
       <DOCUMENTS/>
       <PARAMETERS>
         <PARAMETER NAME="Component_Name" VALUE="design_1_cnn_forward_0_0"/>
-        <PARAMETER NAME="II" VALUE="2432"/>
+        <PARAMETER NAME="II" VALUE="2834"/>
         <PARAMETER NAME="clk_period" VALUE="10"/>
         <PARAMETER NAME="combinational" VALUE="0"/>
-        <PARAMETER NAME="latency" VALUE="2431"/>
+        <PARAMETER NAME="latency" VALUE="2833"/>
         <PARAMETER NAME="machine" VALUE="64"/>
         <PARAMETER NAME="EDK_IPTYPE" VALUE="PERIPHERAL"/>
       </PARAMETERS>

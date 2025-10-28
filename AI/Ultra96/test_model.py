@@ -39,7 +39,7 @@ def setup_ai():
     else:
         ol = Overlay('design_2.bit')
         logger.info("Overlay loaded (design_2.bit): %s", ol)
-        DATA_LABELS = ["Idle", "Class1", "Class2", "Class3", "Class4", "Class5"] # TBC
+        DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
         NUM_INPUT = 8 * NUM_DATA * 4 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 4
         NUM_SENSORS = 4
 
@@ -101,13 +101,14 @@ def main():
 
     sampleCount = 0
     numFailures = 0
+    numLogitMismatches = 0
     totalComputeTime = 0.0
 
     interactiveInput = input("Interactive mode? Y/N: ")
     interactiveMode = interactiveInput.upper() == "Y"
 
     def classify_action():
-        nonlocal sampleCount, numFailures, totalComputeTime, buckets
+        nonlocal sampleCount, numFailures, numLogitMismatches, totalComputeTime, buckets
         logger.info("Received new input data")
 
         # Form inputArray
@@ -135,6 +136,9 @@ def main():
         # Compare output from Ultra96 and laptop
         if predClass != goldenClass:
             numFailures += 1
+
+        if np.any(np.abs(predLogits - goldenLogits) > 0.01):
+            numLogitMismatches += 1
 
         buckets = [[] for _ in range(NUM_SENSORS)]
         sampleCount += 1
@@ -175,6 +179,11 @@ def main():
         print("Class check passed! All predicted classes match the golden.")
     else:
         print(f"Class check failed! {numFailures} mismatches found.")
+
+    if numLogitMismatches == 0:
+        print("Logit check passed! All logits within 0.01 tolerance.")
+    else:
+        print(f"Logit check failed! {numLogitMismatches} values exceeded 0.01 difference.")
 
 
 if __name__ == "__main__":
