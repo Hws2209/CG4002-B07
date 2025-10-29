@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #define SEND_DURATION 2000 
-#define DEVICE_ID 3
+#define DEVICE_ID 2
 //#include <ESPping.h>     // Install "ESPping" library
 
 //key[16] cotain 16 byte key(128 bit) for encryption
@@ -121,6 +121,9 @@ void loop() {
   }
 
   String reply = client.readStringUntil('\n');
+  //if (reply == "b") { //beep test
+  //  client.write(1);
+  //}
   Serial.println("Reply from server: " + reply);
   unsigned long startTime = millis();
   packetCount=0;

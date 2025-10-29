@@ -102,6 +102,7 @@ def ESP_client(conn, addr):
         
         packetCount = 0
         buffer = b''
+        conn.settimeout(7)
         while packetCount < NUM_OF_PACKETS:
           buffer = conn.recv(PACKET_SIZE)
           if not buffer:
@@ -119,6 +120,7 @@ def ESP_client(conn, addr):
               print(packetCount)
               with ultraLock:
                 ultraSocket.send(dataPacket) #send to ultra96
+        conn.settimeout(None)
 
         msgEndBarrier.wait()
       except threading.BrokenBarrierError:
@@ -126,11 +128,13 @@ def ESP_client(conn, addr):
         continue
       except ConnectionResetError:
         break
-
+      except timeout:
+        print("ESP timeouted")
+        break
   else: #if handshake is not successful
     print('did not receive HELLO')
 
-  print(f"[DISCONNECTED] {addr}")
+  print(f"[DISCONNECTED] device ID: {deviceID}")
   with clientLock:
       if conn in connectedClients:
           connectedClients.remove(conn)
@@ -205,12 +209,10 @@ def start_server():
   ultraSocket.listen()
 
   ultraSocket, ultraAddr = ultraSocket.accept()
-  print('ultra has connected')
   #handshake
   message = ultraSocket.recv(10) #read up to number of bytes
-  print(message)
   if message == b"HELLO":
-    print('received HELLO from ultra')
+    print('Received HELLO from ultra')
     msg = "ACK"
     ultraSocket.send(msg.encode())
     ultraSocket.send(bytes([numESPs, mode]))
@@ -263,8 +265,8 @@ def start_server():
       msg = "a"
       broadcast(msg)
       ultraSocket.send(msg.encode())
-      msgEndBarrier.wait(timeout=10)
       startRecevingFromESP = False
+      msgEndBarrier.wait(timeout=10)
       espDoneTime = time.time()
       print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
 
@@ -341,6 +343,8 @@ def start_server():
     except threading.BrokenBarrierError:
       print("Message timeout occurred, cancelling this round")
       msgEndBarrier.abort()
+      #msg = "b"
+      #broadcast(msg)
 
       msg = "ERROR"
       with ultraLock:
