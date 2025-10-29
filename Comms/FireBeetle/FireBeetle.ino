@@ -1,6 +1,7 @@
 #include <CryptoAES_CBC.h>
 #include <AES.h>
 #include "MPU.h"
+#include "Display.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #define SEND_DURATION 2000 
@@ -34,6 +35,7 @@ WiFiClient client;
 
 SensorPacket packet;
 MPU mpu;
+Display display;
 
 // put function declarations here:
 
@@ -42,6 +44,7 @@ void setup() {
   digitalWrite(D9, HIGH);   // turn the LED on (HIGH is the voltage level)
   Serial.begin(115200);
   mpu.begin();
+  display.begin();
   Serial.print("Testingg");
 
   WiFi.begin(ssid, password);
@@ -141,6 +144,7 @@ void loop() {
       memcpy((byte*)&(packet.ax), cypher, 16);
       client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet
       packetCount+=1;
+      display.loopUpdate();
     }
   }
   Serial.print("Number of packets sent: ");
