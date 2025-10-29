@@ -77,13 +77,13 @@ def setup_ai():
         logger.info("Overlay loaded (design_1.bit): %s", ol)
         DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
                        "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
-        NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
     else:
         ol = Overlay('design_2.bit')
         logger.info("Overlay loaded (design_2.bit): %s", ol)
         DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
-        NUM_INPUT = 8 * NUM_DATA * 4 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 4
 
+    NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
+    
     dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
     logger.info("DMA object: %s", dma)
 
@@ -215,7 +215,7 @@ def main():
             print("time taken to receive all data: ", time.time() - startTime)
             logger.info("Received new set of input data. Preprocessing...")
             
-            if numESPs == 2 or (numESPs == 4 and mode == 2):
+            if numESPs == 2:
                 inputArray = process_buckets(buckets)
                 predClass = classify_action(inputArray)
                 ultraSocket.send(bytes([predClass]))

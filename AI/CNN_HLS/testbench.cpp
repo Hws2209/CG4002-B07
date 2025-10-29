@@ -13,7 +13,9 @@
 #define NUM_SENSORS 2
 #define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
 #define NUM_CHANNELS 6
-#define NUM_CLASSES 12
+#define NUM_CLASSES 7
+
+#define MODE 2
 
 typedef int32_t input_t;
 typedef float float_t;
@@ -54,18 +56,23 @@ int main() {
     }
 
     std::string line;
+
+    #if MODE == 2
+    std::vector<std::vector<std::vector<int>>> buckets(2 * NUM_SENSORS);
+    #else
     std::vector<std::vector<std::vector<int>>> buckets(NUM_SENSORS);
-    std::vector<int> golden_pred_classes;
+    #endif
+
     int sample_count = 0;
     int num_failures = 0;
     int num_logit_mismatches = 0;
 
-    auto process_sample = [&]() {
+    auto process_sample = [&](std::vector<std::vector<std::vector<int>>> &local_buckets) {
         sample_count++;
 
-        // Concatenate buckets
+        // Concatenate local_buckets
         std::vector<std::vector<int>> concatenated;
-        for (auto &b : buckets) {
+        for (auto &b : local_buckets) {
             concatenated.insert(concatenated.end(), b.begin(), b.end());
         }
 
@@ -73,7 +80,6 @@ int main() {
             std::cerr << "Unexpected concatenated size: " << concatenated.size() << " vs SEQ_LEN=" << SEQ_LEN << "\n";
             return;
         }
-        for (auto &b : buckets) b.clear();
         
         // Transpose to [NUM_CHANNELS][SEQ_LEN]
         for (int t = 0; t < SEQ_LEN; t++)
@@ -118,14 +124,14 @@ int main() {
         int golden_class = argmax(golden_logits);
         if (pred_class != golden_class) {
             num_failures++;
-            std::cout << "Mismatch at sample " << sample_count << ": predicted class = " 
-              << pred_class << ", golden class = " << golden_class << "\n";
+            std::cout << "Mismatch at sample " << sample_count << ": predicted class = "
+            << pred_class << ", golden class = " << golden_class << "\n";
         }
 
         for (int c = 0; c < NUM_CLASSES; c++) {
             if (std::fabs(output[c] - golden_logits[c]) > 0.1f) {
                 num_logit_mismatches++;
-                std::cout << "Mismatch at sample " << sample_count << ": output logit = " 
+                std::cout << "Mismatch at sample " << sample_count << ": output logit = "
                 << output[c] << ", golden logit = " << golden_logits[c] << "\n";
             }
         }
@@ -137,7 +143,18 @@ int main() {
             bool any_bucket_filled = false;
             for (auto &b : buckets) if (!b.empty()) any_bucket_filled = true;
             if (any_bucket_filled) {
-                process_sample();
+                #if MODE == 2
+                for (int i = 0; i < 2 * NUM_SENSORS; i += 2) {
+                    std::vector<std::vector<std::vector<int>>> pair_buckets;
+                    pair_buckets.push_back(buckets[i]);
+                    pair_buckets.push_back(buckets[i + 1]);
+                    process_sample(pair_buckets);
+                }
+                #else
+                process_sample(buckets);
+                #endif
+
+                for (auto &b : buckets) b.clear();
             }
             continue;
         }
@@ -159,7 +176,18 @@ int main() {
     bool any_bucket_filled = false;
     for (auto &b : buckets) if (!b.empty()) any_bucket_filled = true;
     if (any_bucket_filled) {
-        process_sample();
+        #if MODE == 2
+        for (int i = 0; i < 2 * NUM_SENSORS; i += 2) {
+            std::vector<std::vector<std::vector<int>>> pair_buckets;
+            pair_buckets.push_back(buckets[i]);
+            pair_buckets.push_back(buckets[i + 1]);
+            process_sample(pair_buckets);
+        }
+        #else
+        process_sample(buckets);
+        #endif
+
+        for (auto &b : buckets) b.clear();
     }
 
     data_file.close();
@@ -172,7 +200,7 @@ int main() {
         std::cout << "Class check passed! All predicted classes match the golden.\n";
     else
         std::cout << "Class check failed! " << num_failures << " mismatches found.\n";
-    
+
     if (num_logit_mismatches == 0)
         std::cout << "Logit check passed! All logits within ±0.1 tolerance.\n";
     else

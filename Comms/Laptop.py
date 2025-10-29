@@ -268,7 +268,7 @@ def start_server():
       espDoneTime = time.time()
       print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
 
-      if numPlayers == 1 or (numPlayers == 2 and mode == 2):
+      if numPlayers == 1:
         data = ultraSocket.recv(1)
         ultraDoneTime = time.time()
         predictedClass = data[0]
@@ -303,21 +303,40 @@ def start_server():
         print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
         print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
-        if player1Class == expectedClass and player2Class == expectedClass:
-          currentScore += 1
-          print(f"Both correct! Current score: {currentScore}")
-          play_audio(f"./../Interface/audio/beep.wav")
-          prevRoundCorrect = True
-        else: 
-          if player1Class != expectedClass and player2Class == expectedClass:
-            print("\nPlayer 1 made a mistake! Player 2 wins!")
-          elif player1Class == expectedClass and player2Class != expectedClass:
-            print("\nPlayer 2 made a mistake! Player 1 wins!")
+        if mode == 2:
+          if player1Class == expectedClass and player2Class == expectedClass:
+            currentScore += 1
+            print(f"Correct! Current score: {currentScore}")
+            prevRoundCorrect = True
+            play_audio(f"./../Interface/audio/beep.wav")
+
           else:
-            print("\nBoth players made a mistake! No winner this round.")
-          currentScore = 0
-          prevRoundCorrect = False
-          play_audio(f"./../Interface/audio/lose.wav")
+            print("\nGame over!")
+            print(f"Final score: {currentScore}")
+            play_audio(f"./../Interface/audio/lose.wav")
+            if currentScore > highScore:
+              highScore = currentScore
+              save_high_score(highScore, highScoreFile)
+            print(f"High score: {highScore}")
+            currentScore = 0
+            prevRoundCorrect = False
+
+        else:
+          if player1Class == expectedClass and player2Class == expectedClass:
+            currentScore += 1
+            print(f"Both correct! Current score: {currentScore}")
+            play_audio(f"./../Interface/audio/beep.wav")
+            prevRoundCorrect = True
+          else: 
+            if player1Class != expectedClass and player2Class == expectedClass:
+              print("\nPlayer 1 made a mistake! Player 2 wins!")
+            elif player1Class == expectedClass and player2Class != expectedClass:
+              print("\nPlayer 2 made a mistake! Player 1 wins!")
+            else:
+              print("\nBoth players made a mistake! No winner this round.")
+            currentScore = 0
+            prevRoundCorrect = False
+            play_audio(f"./../Interface/audio/lose.wav")
 
     except threading.BrokenBarrierError:
       print("Message timeout occurred, cancelling this round")

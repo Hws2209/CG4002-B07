@@ -14,10 +14,17 @@ MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 
 NUM_DATA = 6
 WINDOW_SIZE = 20
-NUM_SENSORS = 2
-NUM_CLASSES = 12
 
-DATA = "Data3"
+MODE = 2
+if MODE == 1:
+    NUM_SENSORS = 2
+    NUM_CLASSES = 12
+else:
+    NUM_SENSORS = 4
+    NUM_CLASSES = 7
+
+
+DATA = "CollabDataAgain"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
@@ -71,16 +78,16 @@ def extract_features(matrix):
 
 def preprocess(buckets):
     if MODEL_TYPE == "Simplified MLP":
-        # Size = (NUM_FEATURES * NUM_DATA * NUM_SENSORS)
+        # Size = (NUM_FEATURES * NUM_DATA * 2)
         matrix = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
     elif MODEL_TYPE == "MLP":
-        # Size = (WINDOW_SIZE * NUM_DATA * NUM_SENSORS)
+        # Size = (WINDOW_SIZE * NUM_DATA * 2)
         matrix = np.concatenate(buckets, axis=0).ravel().astype(np.float32)
     elif MODEL_TYPE == "RNN":
-        # Size = (WINDOW_SIZE * NUM_SENSORS, NUM_DATA)
+        # Size = (WINDOW_SIZE * 2, NUM_DATA)
         matrix = np.concatenate(buckets, axis=0).astype(np.float32)
     elif MODEL_TYPE == "CNN":
-        # Size = (NUM_DATA, WINDOW_SIZE * NUM_SENSORS)
+        # Size = (NUM_DATA, WINDOW_SIZE * 2)
         matrix = np.concatenate(buckets, axis=0).T.astype(np.float32)
     else:
         raise ValueError("Invalid MODEL_TYPE")
@@ -101,18 +108,30 @@ def import_data_with_id(dataFile, labelFile, linesPerMatrix):
             if not line: # Empty line indicates end of a matrix
                 if any(buckets):
                     assert sum(len(bucket) for bucket in buckets) == linesPerMatrix, "Matrix line count mismatch"
-                    matrices.append(preprocess(buckets))
+                    if MODE == 1:
+                        matrices.append(preprocess(buckets))
+                    else:
+                        matrices.append(preprocess(buckets[:2]))
+                        matrices.append(preprocess(buckets[2:]))
                     buckets = [[] for _ in range(NUM_SENSORS)]
             else:
                 lineValues = [int(x) for x in line.split(" ")]
                 deviceID = lineValues[0]
                 sensorValues = lineValues[1:]
                 buckets[deviceID - 1].append(sensorValues)
+
         # Add last matrix if file does not end with empty line
         if any(buckets):
             assert sum(len(bucket) for bucket in buckets) == linesPerMatrix, "Matrix line count mismatch"
-            matrices.append(preprocess(buckets))
+            if MODE == 1:
+                matrices.append(preprocess(buckets))
+            else:
+                matrices.append(preprocess(buckets[:2]))
+                matrices.append(preprocess(buckets[2:]))
 
+    if MODE == 2:
+        labelsNumeric = [label for label in labelsNumeric for _ in range(2)]
+    
     # Check consistency
     assert len(matrices) == len(labelsNumeric), "Number of matrices and labels mismatch"
 

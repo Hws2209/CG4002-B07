@@ -34,15 +34,15 @@ def setup_ai():
         logger.info("Overlay loaded (design_1.bit): %s", ol)
         DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
                        "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
-        NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
         NUM_SENSORS = 2
     else:
         ol = Overlay('design_2.bit')
         logger.info("Overlay loaded (design_2.bit): %s", ol)
         DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
-        NUM_INPUT = 8 * NUM_DATA * 4 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 4
         NUM_SENSORS = 4
 
+    NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
+    
     dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
     logger.info("DMA object: %s", dma)
 
@@ -107,17 +107,17 @@ def main():
     interactiveInput = input("Interactive mode? Y/N: ")
     interactiveMode = interactiveInput.upper() == "Y"
 
-    def classify_action():
-        nonlocal sampleCount, numFailures, numLogitMismatches, totalComputeTime, buckets
+    def classify_action(localBuckets):
+        nonlocal sampleCount, numFailures, numLogitMismatches, totalComputeTime
         logger.info("Received new input data")
 
         # Form inputArray
         if MODEL_TYPE == "Simplified MLP":
-            inputArray = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
+            inputArray = np.array([extract_features(np.array(bucket)) for bucket in localBuckets], dtype=np.float32).ravel()
         elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-            inputArray = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
+            inputArray = np.concatenate(localBuckets, axis=0).ravel().astype(np.int32)
         elif MODEL_TYPE == "CNN":
-            inputArray = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
+            inputArray = np.concatenate(localBuckets, axis=0).T.ravel().astype(np.int32)
         else:
             raise ValueError("Invalid MODEL_TYPE")
         
@@ -140,7 +140,6 @@ def main():
         if np.any(np.abs(predLogits - goldenLogits) > 0.01):
             numLogitMismatches += 1
 
-        buckets = [[] for _ in range(NUM_SENSORS)]
         sampleCount += 1
 
         if sampleCount % 50 == 0:
@@ -157,8 +156,15 @@ def main():
             line = line.strip()
             if not line: # Empty line indicates end of a matrix
                 if any(buckets):
-                    if not classify_action():
-                        break
+                    if NUM_SENSORS == 2:
+                        if not classify_action(buckets):
+                            break
+                    else:
+                        if not classify_action(buckets[:2]):
+                            break
+                        if not classify_action(buckets[2:]):
+                            break
+                    buckets = [[] for _ in range(NUM_SENSORS)]
                 continue
             else:
                 lineValues = [int(x) for x in line.split(" ")]
@@ -167,7 +173,11 @@ def main():
                 buckets[deviceID - 1].append(sensorValues)
                 
         if any(buckets): # Handle last matrix if file does not end with empty line
-            classify_action()
+            if NUM_SENSORS == 2:
+                classify_action(buckets)
+            else:
+                if classify_action(buckets[:2]):
+                    classify_action(buckets[2:])
 
     # Print summary
     print(f"Processed {sampleCount} samples")
