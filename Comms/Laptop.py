@@ -47,17 +47,32 @@ def sound_command(simonSays, expectedClass, mode):
     audioFile = f"./../Interface/audio/{expectedClass}.wav"
   else:
     audioFile = f"./../Interface/audio/{mode}{expectedClass}.wav"
-  
+
   if simonSays:
-    if os.path.exists(simonFile):
-      play_audio(simonFile)
-    else:
-      print(f"Audio file {simonFile} missing")
-      sys.exit(1)
-  if os.path.exists(audioFile):
-    play_audio(audioFile)
-  else:
-    print(f"Audio file {audioFile} missing")
+    play_audio(simonFile)
+  play_audio(audioFile)
+
+def check_audio_files():
+  fileError = False
+  simonFile = f"./../Interface/audio/simon_says.wav"
+  if not os.path.exists(simonFile):
+    fileError = True
+  for i in range(1,12):
+    audioFile = f"./../Interface/audio/{i}.wav"
+    if not os.path.exists(audioFile):
+      fileError = True
+  for i in range(21,27):
+    audioFile = f"./../Interface/audio/{i}.wav"
+    if not os.path.exists(audioFile):
+      fileError = True
+  audioFile = f"./../Interface/audio/beep.wav"
+  if not os.path.exists(audioFile):
+    fileError = True
+  audioFile = f"./../Interface/audio/lose.wav"
+  if not os.path.exists(audioFile):
+    fileError = True
+  if fileError:
+    print ("sound files missing") 
     sys.exit(1)
 
 
@@ -126,6 +141,8 @@ def start_server():
   global startBarrier, msgEndBarrier
   global ultraSocket
   global connectedClients
+
+  check_audio_files()
   
   while True:
     try:
@@ -172,8 +189,7 @@ def start_server():
       global connectedClients
       while True:
         if len(connectedClients) < numESPs:
-          print("len of connectecClients: ", len(connectedClients))
-          print("no. of ESPs to expect: ", numESPs)
+          #print("len of connectecClients: ", len(connectedClients))
           conn, addr = serverSocket.accept()
           thread = threading.Thread(target=ESP_client, args=(conn, addr), daemon=True)
           thread.start() 
@@ -269,6 +285,7 @@ def start_server():
         else:
           print("\nGame over!")
           print(f"Final score: {currentScore}")
+          play_audio(f"./../Interface/audio/lose.wav")
           if currentScore > highScore:
             highScore = currentScore
             save_high_score(highScore, highScoreFile)
@@ -291,21 +308,17 @@ def start_server():
           print(f"Both correct! Current score: {currentScore}")
           play_audio(f"./../Interface/audio/beep.wav")
           prevRoundCorrect = True
-
-        elif player1Class != expectedClass and player2Class == expectedClass:
-          print("\nPlayer 1 made a mistake! Player 2 wins!")
+        else: 
+          if player1Class != expectedClass and player2Class == expectedClass:
+            print("\nPlayer 1 made a mistake! Player 2 wins!")
+          elif player1Class == expectedClass and player2Class != expectedClass:
+            print("\nPlayer 2 made a mistake! Player 1 wins!")
+          else:
+            print("\nBoth players made a mistake! No winner this round.")
           currentScore = 0
           prevRoundCorrect = False
+          play_audio(f"./../Interface/audio/lose.wav")
 
-        elif player2Class != expectedClass and player1Class == expectedClass:
-          print("\nPlayer 2 made a mistake! Player 1 wins!")
-          currentScore = 0
-          prevRoundCorrect = False
-
-        else:
-          print("\nBoth players made a mistake! No winner this round.")
-          currentScore = 0
-          prevRoundCorrect = False
     except threading.BrokenBarrierError:
       print("Message timeout occurred, cancelling this round")
       msgEndBarrier.abort()

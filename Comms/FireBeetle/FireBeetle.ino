@@ -25,9 +25,10 @@ AES128 aes128;
 //const char* password = "11223344";
 const char* ssid = "Hws";
 const char* password = "22092003";
-const char* host = "10.248.49.64";
+const char* host = "10.187.30.64";
 const int port = 2105;  
 int packetCount = 0;
+ 
 
 WiFiClient client;
 
@@ -37,6 +38,8 @@ MPU mpu;
 // put function declarations here:
 
 void setup() {
+  pinMode(D9, OUTPUT);
+  digitalWrite(D9, HIGH);   // turn the LED on (HIGH is the voltage level)
   Serial.begin(115200);
   mpu.begin();
   Serial.print("Testingg");
@@ -48,6 +51,7 @@ void setup() {
   }
   
   Serial.println("WiFi Connected");
+  digitalWrite(D9, LOW);
 
   //temporarily using mac address to differentiate firebeetles. may not be reliable.
   //on second thought, hardcode is way btr, easier to ensure consistency
@@ -75,6 +79,7 @@ void setup() {
     Serial.println("Connection Failed");
   } else {
     Serial.println("Connected to Laptop");  
+    digitalWrite(D9, HIGH);
   }
   
 
