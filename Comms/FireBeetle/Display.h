@@ -37,21 +37,25 @@ class Display {
 
     // ===== Device 2 (Player 1, with battery gauge) =====
     void beginDevice2() {
-      playerLabel = "Player 1";
-      beginOLED();
+    playerLabel = "Player 1";
+    beginOLED();
 
-      gauge.begin();
+    gauge.begin();
 
-      // QuickStart for MAX17043
-      Wire.beginTransmission(0x36);
-      Wire.write(0x06);
-      Wire.write(0x40);
-      Wire.write(0x00);
-      Wire.endTransmission();
+    // Manual QuickStart (reinitialize fuel gauge)
+    Wire.beginTransmission(0x36);
+    Wire.write(0x06);
+    Wire.write(0x40);
+    Wire.write(0x00);
+    Wire.endTransmission();
 
-      delay(100);
-      updateBattery();
-      showBatteryScreen();
+    // Add a slightly longer delay and discard the first reading
+    delay(500);
+    gauge.readPercentage(); // dummy read to stabilize
+    delay(100);
+
+    updateBattery();
+    showBatteryScreen();
     }
 
     void updateBattery() {
