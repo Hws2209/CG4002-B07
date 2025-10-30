@@ -16,12 +16,13 @@ class Display {
     Adafruit_SSD1306 oled = Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
     DFRobot_MAX17043 gauge;
 
-    unsigned long lastOledUpdate = 0;
+    unsigned long lastUpdate = 0;
     float batteryPercent = 0;
     float batteryVoltage = 0;
+    String playerLabel = "";
 
-    void begin() {
-      // OLED init
+    // ===== Common Init =====
+    void beginOLED() {
       if (!oled.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
         Serial.println("⚠️ OLED init failed!");
       } else {
@@ -32,11 +33,16 @@ class Display {
         oled.println("OLED Ready");
         oled.display();
       }
+    }
 
-      // Battery gauge init
+    // ===== Device 2 (Player 1, with battery gauge) =====
+    void beginDevice2() {
+      playerLabel = "Player 1";
+      beginOLED();
+
       gauge.begin();
 
-      // Manual QuickStart for MAX17043
+      // QuickStart for MAX17043
       Wire.beginTransmission(0x36);
       Wire.write(0x06);
       Wire.write(0x40);
@@ -45,7 +51,7 @@ class Display {
 
       delay(100);
       updateBattery();
-      updateDisplay(); // show first reading right away
+      showBatteryScreen();
     }
 
     void updateBattery() {
@@ -53,24 +59,53 @@ class Display {
       batteryVoltage = gauge.readVoltage();
     }
 
-    void updateDisplay() {
+    void showBatteryScreen() {
       oled.clearDisplay();
-      oled.setTextSize(2);
+      oled.setTextSize(1);
       oled.setTextColor(SSD1306_WHITE);
-      oled.setCursor(0, 20);
+      oled.setCursor(0, 0);
+      oled.println(playerLabel);
 
+      oled.setTextSize(2);
+      oled.setCursor(0, 24);
       oled.printf("%.0f%%", batteryPercent);
       oled.display();
     }
 
-    void loopUpdate() {
+    void loopDevice2() {
       unsigned long now = millis();
-
-      // Update OLED and battery every 1s
-      if (now - lastOledUpdate >= 1000) {
-        lastOledUpdate = now;
+      if (now - lastUpdate >= 1000) {
+        lastUpdate = now;
         updateBattery();
-        updateDisplay();  
+        showBatteryScreen();
+      }
+    }
+
+    // ===== Device 3 (Player 2, no gauge) =====
+    void beginDevice3() {
+      playerLabel = "Player 2";
+      beginOLED();
+
+      oled.clearDisplay();
+      oled.setTextSize(1);
+      oled.setTextColor(SSD1306_WHITE);
+      oled.setCursor(0, 0);
+      oled.println(playerLabel);
+      oled.display();
+    }
+
+    void loopDevice3(const String &msg = "") {
+      unsigned long now = millis();
+      if (now - lastUpdate >= 1000) {
+        lastUpdate = now;
+        oled.clearDisplay();
+        oled.setTextSize(1);
+        oled.setTextColor(SSD1306_WHITE);
+        oled.setCursor(0, 0);
+        oled.println(playerLabel);
+        oled.setCursor(0, 16);
+        oled.println(msg);
+        oled.display();
       }
     }
 };

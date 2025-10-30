@@ -43,8 +43,11 @@ void setup() {
   pinMode(D9, OUTPUT);
   digitalWrite(D9, HIGH);   // turn the LED on (HIGH is the voltage level)
   Serial.begin(115200);
+  
   mpu.begin();
-  display.begin();
+  if (DEVICE_ID == 2) display.beginDevice2();
+  else if (DEVICE_ID == 3) display.beginDevice3();
+  
   Serial.print("Testingg");
 
   WiFi.begin(ssid, password);
@@ -147,7 +150,12 @@ void loop() {
       memcpy((byte*)&(packet.ax), cypher, 16);
       client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet
       packetCount+=1;
-      display.loopUpdate();
+
+      if (DEVICE_ID == 2) {
+        display.loopDevice2();
+      } else if (DEVICE_ID == 3) {
+        display.loopDevice3("Hello!");
+      }
     }
   }
   Serial.print("Number of packets sent: ");
