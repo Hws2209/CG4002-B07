@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #define SEND_DURATION 2000 
-#define DEVICE_ID 2
+#define DEVICE_ID 4
 //#include <ESPping.h>     // Install "ESPping" library
 
 //key[16] cotain 16 byte key(128 bit) for encryption
@@ -29,6 +29,8 @@ const char* password = "22092003";
 const char* host = "10.187.30.64";
 const int port = 2105;  
 int packetCount = 0;
+int mode;
+int actualClass;
  
 
 WiFiClient client;
@@ -100,6 +102,7 @@ void setup() {
     Serial.println("NOT Acknowledged");
   }
   Serial.println("Acknowledged");
+  mode = client.read();
   client.write(DEVICE_ID);
 
   //test only, hardcode sensor value
@@ -158,8 +161,14 @@ void loop() {
       }
     }
   }
-  Serial.print("Number of packets sent: ");
-  Serial.println(packetCount);
+
+  if (DEVICE_ID==2 || DEVICE_ID ==3){
+    actualClass = client.read();
+  }
+  
+
+//  Serial.print("Number of packets sent: ");
+//  Serial.println(packetCount);
   
 }
 

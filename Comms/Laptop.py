@@ -26,6 +26,7 @@ cipher = AES.new(key, AES.MODE_ECB)
 connectedClients = []   # store client connections
 clientLock = threading.Lock()
 ultraLock = threading.Lock()
+classReceived = threading.Event()
 startRecevingFromESP = False
 gameStarted = False
 ultraSocket = None
@@ -88,6 +89,7 @@ def ESP_client(conn, addr):
   if message == b"HELLO":
     msg = "ACK"
     conn.send(msg.encode())
+    conn.send(mode.to_bytes(1,byteorder='little'))
     data = conn.recv(1)  
     deviceID = data[0]
     print("DeviceID Connected:", deviceID)
@@ -97,9 +99,10 @@ def ESP_client(conn, addr):
     # Main receive loop
     while True:
       try:
-        if not startRecevingFromESP:
-          continue
+        #if not startRecevingFromESP:
+        #  continue
         
+        msgStartBarrier.wait()
         packetCount = 0
         buffer = b''
         conn.settimeout(7)
@@ -123,6 +126,13 @@ def ESP_client(conn, addr):
         conn.settimeout(None)
 
         msgEndBarrier.wait()
+        classReceived.wait()
+
+        if deviceID==2:
+          conn.send(player1Class.to_bytes(1,"little"))
+        if deviceID==3:
+          conn.send(player2Class.to_bytes(1,"little"))
+
       except threading.BrokenBarrierError:
         #need to flush data?
         continue
@@ -142,9 +152,11 @@ def ESP_client(conn, addr):
 
 def start_server():
   global startRecevingFromESP, gameStarted
-  global startBarrier, msgEndBarrier
+  global startBarrier, msgEndBarrier, msgStartBarrier
   global ultraSocket
   global connectedClients
+  global mode
+  global player1Class, player2Class
 
   check_audio_files()
   
@@ -181,6 +193,7 @@ def start_server():
   print("no. of ESPs to expect: ", numESPs)
   startBarrier = threading.Barrier(numESPs+1)
   msgEndBarrier = threading.Barrier(numESPs+1)
+  msgStartBarrier = threading.Barrier(numESPs+1)
 
   #firebeetle connection
   serverPort = 2105
@@ -249,7 +262,8 @@ def start_server():
           if len(connectedClients) < numESPs:
             print(f"Not enough devices connected: Only {len(connectedClients)} devices connected.")
             continue
-
+      
+      classReceived.clear()
       if mode == 1:
         expectedClass = random.randint(1, 11)
       else:
@@ -261,11 +275,12 @@ def start_server():
         expectedClass = 0
 
       startTime = time.time()
-      startRecevingFromESP = True
+      #startRecevingFromESP = True
+      msgStartBarrier.wait()
       msg = "a"
       broadcast(msg)
       ultraSocket.send(msg.encode())
-      startRecevingFromESP = False
+      #startRecevingFromESP = False
       msgEndBarrier.wait(timeout=10)
       espDoneTime = time.time()
       print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
@@ -273,12 +288,14 @@ def start_server():
       if numPlayers == 1:
         data = ultraSocket.recv(1)
         ultraDoneTime = time.time()
-        predictedClass = data[0]
+        player1Class = data[0]
+        classReceived.set()
+        
         print("Expected Action:", DATA_LABELS[expectedClass])
-        print("Action Detected:", DATA_LABELS[predictedClass])
+        print("Action Detected:", DATA_LABELS[player1Class])
         print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
-        if predictedClass == expectedClass:
+        if player1Class == expectedClass:
           currentScore += 1
           print(f"Correct! Current score: {currentScore}")
           prevRoundCorrect = True
@@ -299,6 +316,7 @@ def start_server():
         data = ultraSocket.recv(2)
         ultraDoneTime = time.time()
         player1Class, player2Class = data[0], data[1]
+        classReceived.set()
 
         print("Expected Action:", DATA_LABELS[expectedClass])
         print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
@@ -345,6 +363,7 @@ def start_server():
       msgEndBarrier.abort()
       #msg = "b"
       #broadcast(msg)
+      prevRoundCorrect = False
 
       msg = "ERROR"
       with ultraLock:
