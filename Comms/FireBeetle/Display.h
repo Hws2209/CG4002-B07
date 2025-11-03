@@ -35,6 +35,62 @@ class Display {
       }
     }
 
+    void showActionClass(int classIndex, int mode) {
+      static const char* mode1Labels[] = {
+        "Idle", "Wave left hand", "Wave right hand", "Wave both hands",
+        "Left back arm circle", "Right back arm circle", "Both back arm circles",
+        "Left front arm circle", "Right front arm circle", "Both front arm circles",
+        "Clap", "Star jump"
+      };
+      
+      static const char* mode2Labels[] = {
+        "Idle", "Shake left hand", "Shake right hand", "Shake both hands",
+        "Left high-five", "Right high-five", "Both high-five"
+      };
+
+      const char** labels;
+      int numLabels;
+
+      if (mode == 1) {
+        labels = mode1Labels;
+        numLabels = sizeof(mode1Labels) / sizeof(mode1Labels[0]);
+      } else {
+        labels = mode2Labels;
+        numLabels = sizeof(mode2Labels) / sizeof(mode2Labels[0]);
+      }
+
+      if (classIndex < 0 || classIndex >= numLabels) {
+        classIndex = 0; // default to Idle if out of range
+      }
+
+      // Update battery only if Player 1
+      if (playerLabel == "Player 1") {
+        updateBattery();
+      }
+
+      oled.clearDisplay();
+
+      // --- Top row: player + battery ---
+      oled.setTextSize(1);
+      oled.setTextColor(SSD1306_WHITE);
+      oled.setCursor(0, 0);
+      oled.print(playerLabel);
+
+      if (playerLabel == "Player 1") {
+        oled.setCursor(90, 0);
+        oled.printf("%.0f%%", batteryPercent);
+      }
+
+      // --- Middle: action text ---
+      oled.setTextSize(1);
+      oled.setCursor(0, 20);
+      oled.println("Action:");
+
+      oled.setTextSize(2);
+      oled.setCursor(0, 36);
+    }
+
+
     // ===== Device 2 (Player 1, with battery gauge) =====
     void beginDevice2() {
     playerLabel = "Player 1";

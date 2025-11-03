@@ -136,9 +136,11 @@ void loop() {
 //  packet.gz = 0xEF00;
   unsigned long lastSample = 0; // for 50 Hz sampling
   unsigned long lastSend = 0; // for 10 Hz sending
+  unsigned long lastDisplay = 0; // 10Hz display update
+
+  unsigned long now = millis();
 
   while (packetCount <20){
-    unsigned long now = millis();
     if (now - lastSample >= 20) {
       lastSample = now;
       // update packet with filtered MPU data
@@ -153,19 +155,26 @@ void loop() {
       memcpy((byte*)&(packet.ax), cypher, 16);
       client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet
       packetCount+=1;
-
-      if (DEVICE_ID == 2) {
-        display.loopDevice2();
-      } else if (DEVICE_ID == 3) {
-        display.loopDevice3("Hello!");
-      }
     }
   }
 
-  if (DEVICE_ID==2 || DEVICE_ID ==3){
-    actualClass = client.read();
+  // Display update at 10 Hz (independent of packet send)
+  if (now - lastDisplay >= 100) {
+    lastDisplay = now;
+
+    if (DEVICE_ID == 2) {
+      display.loopDevice2();
+    } else if (DEVICE_ID == 3) {
+      display.loopDevice3("Hello!");
+    }
+
+    static int lastClass = -1;
+    if ((DEVICE_ID == 2 || DEVICE_ID == 3) && actualClass != lastClass) {
+      display.showActionClass(actualClass, mode);
+      lastClass = actualClass;
+    }
   }
-  
+
 
 //  Serial.print("Number of packets sent: ");
 //  Serial.println(packetCount);
