@@ -75,8 +75,8 @@ def setup_ai():
     if mode == 1:
         ol = Overlay('design_1.bit') # Loads the FPGA bitstream
         logger.info("Overlay loaded (design_1.bit): %s", ol)
-        DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
-                       "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
+        DATA_LABELS = ["Idle", "Wave left hand", "Wave right hand", "Wave both hands", "Left back arm circle", "Right back arm circle", "Both back arms circles", 
+                       "Left front arm circle", "Right front arm circle", "Both front arms circles", "Buddha Clap", "Star jump"]
     else:
         ol = Overlay('design_2.bit')
         logger.info("Overlay loaded (design_2.bit): %s", ol)

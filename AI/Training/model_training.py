@@ -15,7 +15,7 @@ MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
 NUM_DATA = 6
 WINDOW_SIZE = 20
 
-MODE = 2
+MODE = 1
 if MODE == 1:
     NUM_SENSORS = 2
     NUM_CLASSES = 12
@@ -24,7 +24,7 @@ else:
     NUM_CLASSES = 7
 
 
-DATA = "CollabDataAgain"
+DATA = "Data6"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
@@ -322,9 +322,9 @@ def objective(trial, trainDataset, valDataset, XTensorShape):
     if MODEL_TYPE == "CNN":
         conv1Out = trial.suggest_categorical("conv1Out", [4, 6, 8])
         conv2Out = trial.suggest_categorical("conv2Out", [2, 3, 4])
-        kernelSizeConv = trial.suggest_categorical("kernelSizeConv", [2, 3, 5])
-        poolSize = trial.suggest_categorical("poolSize", [2, 3])
-        fc1Neurons = trial.suggest_categorical("fc1Neurons", [32, 64, 128])
+        kernelSizeConv = trial.suggest_categorical("kernelSizeConv", [2, 3])
+        poolSize = trial.suggest_categorical("poolSize", [2, 4])
+        fc1Neurons = trial.suggest_categorical("fc1Neurons", [64, 128])
         model = ActionCNN(numChannels=XTensorShape[1], numClasses=NUM_CLASSES,
                           sequenceLength=XTensorShape[2],
                           conv1Out=conv1Out, conv2Out=conv2Out,

@@ -19,7 +19,7 @@ NUM_CLIENTS = 4 # num of esp
 MODE = 1
 if MODE == 1:
   DATA_LABELS = ["Idle", "Wave left hand", "Wave right hand", "Wave both hands", "Left back arm circle", "Right back arm circle", "Both back arms circles", 
-                 "Left front arm circle", "Right front arm circle", "Both front arms circles", "Clap", "Star jump"]
+                 "Left front arm circle", "Right front arm circle", "Both front arms circles", "Buddha Clap", "Star jump"]
 else:
   DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
@@ -219,7 +219,7 @@ def start_server():
       maxLogit = maxLogitTensor.item()
       predClass = predClassTensor.item()
 
-      if maxLogit >= 4:
+      if maxLogit >= 5:
         print(f"PREDICTED CLASS: {predClass} ({DATA_LABELS[predClass]})")
       else:
         predClass = -1
