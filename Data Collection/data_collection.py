@@ -14,18 +14,18 @@ PACKET_SIZE = 20 # bytes
 NUM_OF_PACKETS = 20 # expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
-MODE = 2
+NUM_CLIENTS = 4 # num of esp
+
+MODE = 1
 if MODE == 1:
-  NUM_CLIENTS = 2 # num of esp
-  DATA_LABELS = ["Idle", "Raise left arm", "Raise right arm", "Raise both arms", "Wave left hand", "Wave right hand", 
-                 "Wave both hands", "Left arm circle", "Right arm circle", "Both arms circles", "Clap", "Star jump"]
+  DATA_LABELS = ["Idle", "Wave left hand", "Wave right hand", "Wave both hands", "Left back arm circle", "Right back arm circle", "Both back arms circles", 
+                 "Left front arm circle", "Right front arm circle", "Both front arms circles", "Clap", "Star jump"]
 else:
-  NUM_CLIENTS = 4
   DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
-IS_TESTING_MODE = True
+IS_TESTING_MODE = False
 MODEL_TYPE = "CNN"
-MODEL_PATH = "model_collab.pt"
+MODEL_PATH = "model.pt"
 
 
 #encryption data
@@ -144,7 +144,7 @@ def ESP_client(conn, addr):
         # print(f"ESP {deviceID}: packet {packetCount}")
         # print(deviceID, ax, ay, az, gx, gy, gz)
         with ultraLock:
-          collectedData.append((deviceID, ax, ay, az, gx, gy, gz))
+          collectedData.append([deviceID, ax, ay, az, gx, gy, gz])
 
       msgEndBarrier.wait()
     except ConnectionResetError:
@@ -233,23 +233,58 @@ def start_server():
     if classInput.isdigit():  # valid integer
       classLabel = int(classInput)
 
-      # Save collected data to file
-      dataFilename = "data.txt"
-      with open(dataFilename, "a") as f:
-        for row in collectedData:
-          f.write(" ".join(map(str, row)) + "\n")
-        f.write("\n") # blank line between rounds
+      if MODE == 1 and NUM_CLIENTS == 4:
+        # Separate data based on device ID
+        matrix_12 = [row for row in collectedData if row[0] in (1, 2)]
+        matrix_34 = [row for row in collectedData if row[0] in (3, 4)]
 
-      # Save class label to file
-      labelFilename = "label.txt"
-      with open(labelFilename, "a") as f:
-        f.write(f"{classLabel}\n")
-        
-      # Update counts
-      if classLabel in classCounts:
-        classCounts[classLabel] += 1
+        # Save collected data to file
+        dataFilename = "data.txt"
+        with open(dataFilename, "a") as f:
+          for row in matrix_12:
+            f.write(" ".join(map(str, row)) + "\n")
+          f.write("\n") # blank line between rounds
+
+        dataFilename = "data.txt"
+        with open(dataFilename, "a") as f:
+          for row in matrix_34:
+            if row[0] == 3:
+              row[0] = 1
+            elif row[0] == 4:
+              row[0] = 2
+            f.write(" ".join(map(str, row)) + "\n")
+          f.write("\n") # blank line between rounds
+
+        # Save class label to file
+        labelFilename = "label.txt"
+        with open(labelFilename, "a") as f:
+          f.write(f"{classLabel}\n")
+          f.write(f"{classLabel}\n")
+          
+        # Update counts
+        if classLabel in classCounts:
+          classCounts[classLabel] += 2
+        else:
+          classCounts[classLabel] = 2
+
       else:
-        classCounts[classLabel] = 1
+        # Save collected data to file
+        dataFilename = "data.txt"
+        with open(dataFilename, "a") as f:
+          for row in collectedData:
+            f.write(" ".join(map(str, row)) + "\n")
+          f.write("\n") # blank line between rounds
+
+        # Save class label to file
+        labelFilename = "label.txt"
+        with open(labelFilename, "a") as f:
+          f.write(f"{classLabel}\n")
+          
+        # Update counts
+        if classLabel in classCounts:
+          classCounts[classLabel] += 1
+        else:
+          classCounts[classLabel] = 1
 
       collectedData.clear() # clear buffer for next round
       print(f"[SAVED] Wrote {NUM_CLIENTS * NUM_OF_PACKETS} rows to {dataFilename}")
