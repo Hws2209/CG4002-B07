@@ -14,7 +14,7 @@ PACKET_SIZE = 20 # bytes
 NUM_OF_PACKETS = 20 # expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
-NUM_CLIENTS = 4 # num of esp
+NUM_CLIENTS = 2 # num of esp
 
 MODE = 1
 if MODE == 1:
@@ -23,7 +23,7 @@ if MODE == 1:
 else:
   DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
-IS_TESTING_MODE = False
+IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
 MODEL_PATH = "model.pt"
 

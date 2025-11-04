@@ -11,13 +11,13 @@
 
 #define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
 #define NUM_CHANNELS 6
-#define NUM_CLASSES 7
+#define NUM_CLASSES 12
 
 #define CONV1_OUT 8
 #define CONV2_OUT 4
-#define KERNEL_SIZE 3
-#define POOL_SIZE 2
-#define FC1_NEURONS 128
+#define KERNEL_SIZE 2
+#define POOL_SIZE 4
+#define FC1_NEURONS 64
 
 typedef int32_t input_t;
 typedef float float_t;
@@ -67,6 +67,8 @@ void conv1d_layer2(
     int out_channels
 ) {
     #pragma HLS ARRAY_PARTITION variable=input complete dim=1
+
+    int pad_left = (KERNEL_SIZE - 1) / 2;
     
     Conv2_Loop_OC: for (int oc = 0; oc < out_channels; oc++) {
         Conv2_Loop_I: for (int i = 0; i < SEQ_LEN; i++) {
@@ -74,7 +76,7 @@ void conv1d_layer2(
             float_t sum = bias[oc];
             Conv2_Loop_IC: for (int ic = 0; ic < in_channels; ic++) {
                 Conv2_Loop_K: for (int k = 0; k < KERNEL_SIZE; k++) {
-                    int idx = i + k - 1; // padding='same'
+                    int idx = i + k - pad_left;
                     if (idx >= 0 && idx < SEQ_LEN) {
                         sum += input[ic][idx] * weight[oc*in_channels*KERNEL_SIZE + ic*KERNEL_SIZE + k];
                     }
