@@ -122,7 +122,8 @@ def ESP_client(conn, addr):
               packetCount += 1
               print(packetCount)
               with ultraLock:
-                ultraSocket.send(dataPacket) #send to ultra96
+                ultraSocket.sendall(dataPacket) #send to ultra96
+                print("sent packet: ",packetCount)
         conn.settimeout(None)
 
         msgEndBarrier.wait()
@@ -253,11 +254,18 @@ def start_server():
   
   currentScore = 0
   prevRoundCorrect = False
+  tutorialExpectedClass = 1
 
   while True:
     try:
       if not prevRoundCorrect:
-        input("Press enter to start game")
+        cliInput = input("Press enter to start game. Enter T for tutorial if player 1: ")
+        if numPlayers == 1 and cliInput == "T":
+          tutorialMode = True
+          tutorialExpectedClass = 1
+          print("Entered Tutorial Mode")
+        else:
+          tutorialMode = False
         with clientLock:
           if len(connectedClients) < numESPs:
             print(f"Not enough devices connected: Only {len(connectedClients)} devices connected.")
@@ -267,9 +275,13 @@ def start_server():
       if mode == 1:
         expectedClass = random.randint(1, 11)
       else:
-        expectedClass = random.randint(1, 6)
-      
+        expectedClass = random.randint(1, 6) 
       simonSays = 1 if random.random() < 0.8 else 0
+      
+      if tutorialMode:
+        simonSays = 1
+        expectedClass = tutorialExpectedClass
+
       sound_command(simonSays, expectedClass, mode)
       if not simonSays:
         expectedClass = 0
@@ -300,8 +312,18 @@ def start_server():
           print(f"Correct! Current score: {currentScore}")
           prevRoundCorrect = True
           play_audio(f"./../Interface/audio/beep.wav")
+          if tutorialExpectedClass == 16:
+            prevRoundCorrect = False
+            print("Tutorial completed!")
+          elif tutorialExpectedClass <16:
+            tutorialExpectedClass +=1
+
           
         else:
+          if tutorialMode:
+            print("Action not performed correctly. Please try again")
+            prevRoundCorrect = True
+            continue
           print("\nGame over!")
           print(f"Final score: {currentScore}")
           play_audio(f"./../Interface/audio/lose.wav")
