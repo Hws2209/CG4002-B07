@@ -8,8 +8,6 @@ import struct
 import sys
 from Crypto.Cipher import AES
 
-MODEL_TYPE = "CNN" # "CNN" | "RNN" | "MLP" | "Simplified MLP"
-
 
 logger = logging.getLogger("ai_engine")
 logger.setLevel(logging.INFO)
@@ -44,7 +42,7 @@ def setup_comms():
     ultraPort = 8887 
 
     ultraSocket = socket(AF_INET, SOCK_STREAM)
-    print("trying to connect to server")
+    print("Trying to connect to server")
     ultraSocket.connect((ultraName, ultraPort))
     print("Successfully connected to server")
     message = "HELLO"
@@ -82,15 +80,12 @@ def setup_ai():
         logger.info("Overlay loaded (design_2.bit): %s", ol)
         DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
-    NUM_INPUT = 8 * NUM_DATA * 2 if MODEL_TYPE == "Simplified MLP" else NUM_OF_PACKETS * NUM_DATA * 2
+    NUM_INPUT = NUM_OF_PACKETS * NUM_DATA * 2
     
     dma = ol.axi_dma_0 # Direct memory access channel between FPGA and ARM
     logger.info("DMA object: %s", dma)
 
-    if MODEL_TYPE == "Simplified MLP":
-        inputBuffer = allocate(shape=(NUM_INPUT,), dtype=np.float32)
-    else:
-        inputBuffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
+    inputBuffer = allocate(shape=(NUM_INPUT,), dtype=np.int32) # To store input data to send to FPGA
     outputBuffer = allocate(shape=(len(DATA_LABELS),), dtype=np.float32) # To store output logit from FPGA
 
     logger.info("Input buffer allocated with shape %s", inputBuffer.shape)
@@ -122,16 +117,16 @@ def extract_features(input):
 
 def get_model_output(inputArray):
     global inputBuffer, outputBuffer, dma, DATA_LABELS
-    logger.info("Preparing input buffer...")
+    # logger.info("Preparing input buffer...")
     np.copyto(inputBuffer, inputArray)
 
     try:
-        logger.info("Starting DMA send transfer...")
+        # logger.info("Starting DMA send transfer...")
         dma.sendchannel.transfer(inputBuffer)
         dma.recvchannel.transfer(outputBuffer)
         dma.sendchannel.wait()
         dma.recvchannel.wait()
-        logger.info("DMA receive completed.")
+        # logger.info("DMA receive completed.")
 
         return outputBuffer.copy()
     except RuntimeError as e:
@@ -145,24 +140,15 @@ def classify_action(inputArray):
     predClass = int(np.argmax(predLogits))
     endTime = time.time()
 
-    logger.info("Prediction logits: %s", predLogits)
-    logger.info("Predicted class: %d %s", predClass, DATA_LABELS[predClass])
+    # logger.info("Prediction logits: %s", predLogits)
+    # logger.info("Predicted class: %d %s", predClass, DATA_LABELS[predClass])
     logger.info("Time taken for dma + inference: %s", endTime - startTime)
 
     return predClass
 
 
 def process_buckets(buckets):
-    # Form inputArray
-    if MODEL_TYPE == "Simplified MLP":
-        inputArray = np.array([extract_features(np.array(bucket)) for bucket in buckets], dtype=np.float32).ravel()
-    elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-        inputArray = np.concatenate(buckets, axis=0).ravel().astype(np.int32)
-    elif MODEL_TYPE == "CNN":
-        inputArray = np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
-    else:
-        raise ValueError("Invalid MODEL_TYPE")
-    return inputArray
+    return np.concatenate(buckets, axis=0).T.ravel().astype(np.int32)
 
 
 def main():
@@ -189,7 +175,7 @@ def main():
                         # keep leftover for next call (if streaming)
                         buffer = buffer[idx + PACKET_SIZE:]
                         header, deviceID = struct.unpack("<H H", dataPacket[:4])
-                        print(header, deviceID)
+                        # print(header, deviceID)
 
                         if header != 0xAA55:
                             print("incorrect header! Resync needed")
@@ -197,12 +183,12 @@ def main():
                             continue
 
                         packetCount += 1
-                        print(packetCount)
+                        # print(packetCount)
 
                         encryptedPayload = dataPacket[4:]
                         decryptedPayload = cipher.decrypt(encryptedPayload)
                         ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
-                        print(ax, ay, az, gx, gy, gz, padding)
+                        # print(ax, ay, az, gx, gy, gz, padding)
                         buckets[deviceID - 1].append([ax, ay, az, gx, gy, gz])
 
 
@@ -213,7 +199,7 @@ def main():
 
             # Received all packets of data
             print("time taken to receive all data: ", time.time() - startTime)
-            logger.info("Received new set of input data. Preprocessing...")
+            # logger.info("Received new set of input data. Preprocessing...")
             
             if numESPs == 2:
                 inputArray = process_buckets(buckets)
