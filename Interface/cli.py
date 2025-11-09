@@ -4,14 +4,22 @@ import time
 import pygame
 
 
-def play_audio(file):
+def play_audio(file, vol=1.0):
     if not pygame.mixer.get_init():
         pygame.mixer.init()
     pygame.mixer.music.load(file)  # compressed WAV works
+    pygame.mixer.music.set_volume(vol)
     pygame.mixer.music.play()
 
     while pygame.mixer.music.get_busy():
         pygame.time.Clock().tick(10)
+
+def play_nonblock_audio(file, vol=1.0):
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    pygame.mixer.music.load(file)  # compressed WAV works
+    pygame.mixer.music.set_volume(vol)
+    pygame.mixer.music.play()
 
 def load_high_score(file):
     if not os.path.exists(file):

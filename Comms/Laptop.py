@@ -1,4 +1,3 @@
-#import socket 
 from socket import *
 from Crypto.Cipher import AES
 import sys
@@ -13,6 +12,16 @@ PACKET_SIZE = 20 #bytes
 NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
+
+DEBUG = 0
+#colors for CLI text
+RESET  = "\033[0m"
+RED    = "\033[31m"
+GREEN  = "\033[32m"
+YELLOW = "\033[33m"
+BLUE   = "\033[34m"
+CYAN   = "\033[36m"
+MAGENTA = "\033[95m"
 #encryption data
 key = bytes([
     0x00, 0x01, 0x02, 0x03,
@@ -27,7 +36,6 @@ connectedClients = []   # store client connections
 clientLock = threading.Lock()
 ultraLock = threading.Lock()
 #classReceived = threading.Event()
-startRecevingFromESP = False
 gameStarted = False
 ultraSocket = None
 
@@ -43,18 +51,24 @@ def flush_recv(socket):
   except BlockingIOError:
     pass  # no more data available
   socket.setblocking(True)
-  print("num of packets flushed: ", dataSumLen/20)
+  debug_print("num of packets flushed: ", dataSumLen/20)
 
+def debug_print(*args, **kwargs):
+  if DEBUG:
+        print(f"{CYAN}[DEBUG]{RESET}", *args, **kwargs)
 
-#broadcast msg to all esp
-def broadcast(message: str):
-    """Send message to all connected clients"""
-    with clientLock:
-        for c in connectedClients:
-            try:
-                c.sendall((message + "\n").encode())
-            except:
-                pass
+def print_game_over(currentScore, highScore, highScoreFile):
+  print(f"{RED}Game over!{RESET}")
+  play_nonblock_audio(f"./../Interface/audio/lose.wav", 0.5)
+  print(f"{MAGENTA}Final score:{RESET} {currentScore}")
+  if currentScore > highScore:
+    highScore = currentScore
+    save_high_score(highScore, highScoreFile)
+  print(f"{BLUE}High score:{RESET} {highScore}")
+
+def print_correct(currentScore):
+  print(f"{GREEN}Correct!{RESET} Current score: {currentScore}")
+  play_audio(f"./../Interface/audio/beep.wav")
 
 # Play audio file
 def sound_command(simonSays, expectedClass, mode):
@@ -87,15 +101,19 @@ def check_audio_files():
   audioFile = f"./../Interface/audio/lose.wav"
   if not os.path.exists(audioFile):
     fileError = True
+  audioFile = f"./../Interface/audio/game.wav"
+  if not os.path.exists(audioFile):
+    fileError = True
   if fileError:
     print ("sound files missing") 
     sys.exit(1)
+  if not pygame.mixer.get_init():
+      pygame.mixer.init()
 
 
 
 def ESP_client(conn, addr):
   global gameStarted
-  global startRecevingFromESP
   global ultraSocket
   global connectedClients
 
@@ -107,15 +125,13 @@ def ESP_client(conn, addr):
     conn.send(mode.to_bytes(1,byteorder='little'))
     data = conn.recv(1)  
     deviceID = data[0]
-    print("DeviceID Connected:", deviceID)
+    print("ESP", deviceID, "Connected")
 
     if not gameStarted:
       startBarrier.wait()
     # Main receive loop
     while True:
       try:
-        #if not startRecevingFromESP:
-        #  continue
         
         msgStartBarrier.wait()
         flush_recv(conn)
@@ -136,12 +152,11 @@ def ESP_client(conn, addr):
               dataPacket = buffer[idx: idx + PACKET_SIZE]
               # keep leftover for next call (if streaming)
               buffer = buffer[idx + PACKET_SIZE:]
-              print(dataPacket.hex())
+              debug_print(dataPacket.hex())
               packetCount += 1
-              print(packetCount)
+              debug_print(packetCount)
               with ultraLock:
                 ultraSocket.sendall(dataPacket) #send to ultra96
-                print("sent packet: ",packetCount)
         conn.settimeout(None)
 
         msgEndBarrier.wait()
@@ -163,14 +178,14 @@ def ESP_client(conn, addr):
   else: #if handshake is not successful
     print('did not receive HELLO')
 
-  print(f"[DISCONNECTED] device ID: {deviceID}")
+  print(f"{RED}[DISCONNECTED]{RESET} ESP ID: {deviceID}")
   with clientLock:
       if conn in connectedClients:
           connectedClients.remove(conn)
   conn.close()
 
 def start_server():
-  global startRecevingFromESP, gameStarted
+  global gameStarted
   global startBarrier, msgEndBarrier, msgStartBarrier, classReceived
   global ultraSocket
   global connectedClients
@@ -245,12 +260,12 @@ def start_server():
   #handshake
   message = ultraSocket.recv(10) #read up to number of bytes
   if message == b"HELLO":
-    print('Received HELLO from ultra')
+    debug_print('Received HELLO from ultra')
     msg = "ACK"
     ultraSocket.send(msg.encode())
     ultraSocket.send(bytes([numESPs, mode]))
 
-    print("Waiting for Ultra96 to load bitstream")
+    debug_print("Waiting for Ultra96 to load bitstream")
     readyMsg = ultraSocket.recv(5)
     if readyMsg == b"READY":
       print("Ultra96 is ready!")
@@ -278,7 +293,12 @@ def start_server():
   while True:
     try:
       if not prevRoundCorrect:
-        cliInput = input("Press enter to start game. Enter T for tutorial if player 1: ")
+        if numPlayers == 1:
+          displayMsg = "\nPress enter to start game. Enter T for tutorial if player 1: "
+        else:
+          displayMsg = "\nPress enter to start game."
+
+        cliInput = input(displayMsg)
         if numPlayers == 1 and cliInput == "T":
           tutorialMode = True
           tutorialExpectedClass = 1
@@ -305,16 +325,14 @@ def start_server():
       if not simonSays:
         expectedClass = 0
 
+      play_nonblock_audio(f"./../Interface/audio/game.wav")
       startTime = time.time()
-      #startRecevingFromESP = True
       msg = "a"
       ultraSocket.send(msg.encode())
-      #broadcast(msg)
-      #startRecevingFromESP = False
       msgStartBarrier.wait()
       msgEndBarrier.wait(timeout=10)
       espDoneTime = time.time()
-      print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
+      debug_print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
 
       if numPlayers == 1:
         data = ultraSocket.recv(1)
@@ -324,13 +342,12 @@ def start_server():
         
         print("Expected Action:", DATA_LABELS[expectedClass])
         print("Action Detected:", DATA_LABELS[player1Class])
-        print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
+        debug_print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
         if player1Class == expectedClass:
           currentScore += 1
-          print(f"Correct! Current score: {currentScore}")
+          print_correct(currentScore)
           prevRoundCorrect = True
-          play_audio(f"./../Interface/audio/beep.wav")
           if tutorialMode:
             if tutorialExpectedClass == 11:
               prevRoundCorrect = False
@@ -344,13 +361,7 @@ def start_server():
             print("Action not performed correctly. Please try again")
             prevRoundCorrect = True
             continue
-          print("\nGame over!")
-          print(f"Final score: {currentScore}")
-          play_audio(f"./../Interface/audio/lose.wav")
-          if currentScore > highScore:
-            highScore = currentScore
-            save_high_score(highScore, highScoreFile)
-          print(f"High score: {highScore}")
+          print_game_over(currentScore, highScore, highScoreFile)
           currentScore = 0
           prevRoundCorrect = False
 
@@ -363,48 +374,38 @@ def start_server():
         print("Expected Action:", DATA_LABELS[expectedClass])
         print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
         print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
-        print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
+        debug_print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
         if mode == 2:
           if player1Class == expectedClass and player2Class == expectedClass:
             currentScore += 1
-            print(f"Correct! Current score: {currentScore}")
+            print_correct(currentScore)
             prevRoundCorrect = True
-            play_audio(f"./../Interface/audio/beep.wav")
 
           else:
-            print("\nGame over!")
-            print(f"Final score: {currentScore}")
-            play_audio(f"./../Interface/audio/lose.wav")
-            if currentScore > highScore:
-              highScore = currentScore
-              save_high_score(highScore, highScoreFile)
-            print(f"High score: {highScore}")
+            print_game_over(currentScore, highScore, highScoreFile)
             currentScore = 0
             prevRoundCorrect = False
 
         else:
           if player1Class == expectedClass and player2Class == expectedClass:
             currentScore += 1
-            print(f"Both correct! Current score: {currentScore}")
-            play_audio(f"./../Interface/audio/beep.wav")
+            print_correct(currentScore)
             prevRoundCorrect = True
           else: 
+            play_audio(f"./../Interface/audio/lose.wav")
             if player1Class != expectedClass and player2Class == expectedClass:
-              print("\nPlayer 1 made a mistake! Player 2 wins!")
+              print(f"Player 1 made a mistake! Player 2 wins!")
             elif player1Class == expectedClass and player2Class != expectedClass:
               print("\nPlayer 2 made a mistake! Player 1 wins!")
             else:
               print("\nBoth players made a mistake! No winner this round.")
             currentScore = 0
             prevRoundCorrect = False
-            play_audio(f"./../Interface/audio/lose.wav")
 
     except threading.BrokenBarrierError:
-      print("Message timeout occurred, cancelling this round")
+      print(f"{RED}Message timeout occurred, cancelling this round{RESET}")
       msgEndBarrier.abort()
-      #msg = "b"
-      #broadcast(msg)
       prevRoundCorrect = False
 
       msg = "ERROR"
