@@ -31,19 +31,19 @@ startRecevingFromESP = False
 gameStarted = False
 ultraSocket = None
 
-#def flush_recv(socket):
-#  dataSumLen = 0
-#  socket.setblocking(False)
-#  try:
-#    while True:
-#        data = socket.recv(1024)
-#        dataSumLen += len(data)
-#        if not data:
-#            break
-#  except BlockingIOError:
-#    pass  # no more data available
-#  socket.setblocking(True)
-#  print("num of packets flushed: ", dataSumLen/22)
+def flush_recv(socket):
+  dataSumLen = 0
+  socket.setblocking(False)
+  try:
+    while True:
+        data = socket.recv(1024)
+        dataSumLen += len(data)
+        if not data:
+            break
+  except BlockingIOError:
+    pass  # no more data available
+  socket.setblocking(True)
+  print("num of packets flushed: ", dataSumLen/20)
 
 
 #broadcast msg to all esp
@@ -118,6 +118,9 @@ def ESP_client(conn, addr):
         #  continue
         
         msgStartBarrier.wait()
+        flush_recv(conn)
+        msg = 'a'
+        conn.sendall(msg.encode())
         packetCount = 0
         buffer = b''
         conn.settimeout(7)
@@ -144,10 +147,10 @@ def ESP_client(conn, addr):
         msgEndBarrier.wait()
         classReceived.wait()
 
-        #if deviceID==2:
-        #  conn.send(player1Class.to_bytes(1,"little"))
-        #if deviceID==3:
-        #  conn.send(player2Class.to_bytes(1,"little"))
+        if deviceID==2:
+          conn.send(player1Class.to_bytes(1,"little"))
+        if deviceID==3:
+          conn.send(player2Class.to_bytes(1,"little"))
 
       except threading.BrokenBarrierError:
         #need to flush data?
@@ -306,7 +309,7 @@ def start_server():
       #startRecevingFromESP = True
       msg = "a"
       ultraSocket.send(msg.encode())
-      broadcast(msg)
+      #broadcast(msg)
       #startRecevingFromESP = False
       msgStartBarrier.wait()
       msgEndBarrier.wait(timeout=10)
@@ -328,11 +331,12 @@ def start_server():
           print(f"Correct! Current score: {currentScore}")
           prevRoundCorrect = True
           play_audio(f"./../Interface/audio/beep.wav")
-          if tutorialExpectedClass == 11:
-            prevRoundCorrect = False
-            print("Tutorial completed!")
-          elif tutorialExpectedClass <11:
-            tutorialExpectedClass +=1
+          if tutorialMode:
+            if tutorialExpectedClass == 11:
+              prevRoundCorrect = False
+              print("Tutorial completed!")
+            elif tutorialExpectedClass <11:
+              tutorialExpectedClass +=1
 
           
         else:

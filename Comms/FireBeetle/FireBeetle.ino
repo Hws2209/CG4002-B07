@@ -4,8 +4,8 @@
 #include "Display.h"
 #include <Arduino.h>
 #include <WiFi.h>
-#define SEND_DURATION 2000 
-#define DEVICE_ID 4
+#define SEND_DURATION 2000
+#define DEVICE_ID 2
 //#include <ESPping.h>     // Install "ESPping" library
 
 //key[16] cotain 16 byte key(128 bit) for encryption
@@ -24,15 +24,17 @@ AES128 aes128;
 //WiFi setup
 //const char* ssid = "Wenwuuu";
 //const char* password = "11223344";
-const char* ssid = "Hws";
-const char* password = "22092003";
-const char* host = "10.247.90.64";
-const int port = 2105;  
+//const char* ssid = "Hws";
+//const char* password = "22092003";
+const char* ssid = "SINGTEL-T6WV";
+const char* password = "v52t7w3f4k";
+const char* host = "192.168.1.92";
+const int port = 2105;
 int packetCount = 0;
 int mode;
-int actualClass = 1;
+int actualClass = 0;
 int padding;
-
+int lastClass = -1;
 
 WiFiClient client;
 
@@ -140,79 +142,71 @@ void loop() {
 
   unsigned long now = millis();
 
-  while(client.available()==0){
-      now = millis();
-      // Display update at 10 Hz (independent of packet send)
-      #if (DEVICE_ID == 2) || (DEVICE_ID == 3)
-        if (now - lastDisplay >= 100) {
-          lastDisplay = now;
-          actualClass = client.read();
+  while (client.available() == 0) {
+    now = millis();
+    // Display update at 10 Hz (independent of packet send)
+#if (DEVICE_ID == 2) || (DEVICE_ID == 3)
+    if (now - lastDisplay >= 100) {
+      lastDisplay = now;
 
-          #if DEVICE_ID == 2
-            display.loopDevice2(now);
-          #elif DEVICE_ID == 3
-            display.loopDevice3(now, "Hello!");
-          #endif
+//#if DEVICE_ID == 2
+//      display.loopDevice2(now);
+//#elif DEVICE_ID == 3
+//      display.loopDevice3(now, "Hello!");
+//#endif
 
-          static int lastClass = -1;
-          if (actualClass != lastClass) {
-            display.showActionClass(actualClass, mode);
-            lastClass = actualClass;
-          }
-        }
-      #endif
-       delay(10); //wait for server to reply
+//      if (actualClass != lastClass) {
+//        Serial.print("refresh update mode: ");
+//        Serial.print(mode);
+//        Serial.print("    class:      ");
+//        Serial.println(actualClass);
+//        display.showActionClass(actualClass, mode);
+//        lastClass = actualClass;
+//      }
+        display.showActionClass(actualClass, mode);
+    }
+#endif
+    delay(10); //wait for server to reply
   }
 
 
   //  String reply = client.readStringUntil('\n');
   char reply = client.read();
-  //  while (reply != "a") {
-  //    reply = client.readStringUntil('\n');
-  //    }
-  //  if (reply != "a") { //beep test
-  //    continue;
-  //  }
-  Serial.println("Reply from server: " + reply);
-  unsigned long startTime = millis();
-  packetCount = 0;
-  padding = 0;
-  //  packet.gz = 0xEF00;
+  Serial.print("Reply from server: ");
+  Serial.println(reply);
+  if (reply == 'a') { //msg to start sending packets
+    unsigned long startTime = millis();
+    packetCount = 0;
+    padding = 0;
 
+    while (packetCount < 20) {
+      now = millis();
+      if (now - lastSample >= 20) {
+        lastSample = now;
+        // update packet with filtered MPU data
+        packet = mpu.readFilteredPacket(DEVICE_ID);
+      }
 
-  while (packetCount < 20) {
-    now = millis();
-    if (now - lastSample >= 20) {
-      lastSample = now;
-      // update packet with filtered MPU data
-      packet = mpu.readFilteredPacket(DEVICE_ID);
+      // --- Send at 10 Hz (every 100 ms) ---
+      if (now - lastSend >= 100) {
+        lastSend = now;
+        packet.padding = padding;
+        padding += 1;
+        aes128.encryptBlock(cypher, (byte*) & (packet.ax)); //cypher->output block and packet->input block
+        memcpy((byte*) & (packet.ax), cypher, 16);
+        client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet
+        packetCount += 1;
+      }
     }
-
-    // --- Send at 10 Hz (every 100 ms) ---
-    if (now - lastSend >= 100) {
-      lastSend = now;
-      packet.padding = padding;
-      padding += 1;
-      aes128.encryptBlock(cypher, (byte*) & (packet.ax)); //cypher->output block and packet->input block
-      memcpy((byte*) & (packet.ax), cypher, 16);
-      client.write((uint8_t*)&packet, sizeof(packet)); // send most recent packet
-      packetCount += 1;
+    if (DEVICE_ID == 2 || DEVICE_ID == 3) {
+      while (client.available() == 0) {
+        delay(10); //wait for server to reply
+      }
+      actualClass = client.read();
+      Serial.print("Actual Class: ");
+      Serial.println(actualClass);
     }
   }
-  if (DEVICE_ID == 2 || DEVICE_ID == 3) {
-    while (client.available() == 0) {
-      delay(10); //wait for server to reply
-    }
-    actualClass = client.read();
-    Serial.print("Actual Class: ");
-    Serial.println(actualClass);
-  }
-
-
-
-  //  Serial.print("Number of packets sent: ");
-  //  Serial.println(packetCount);
-
 }
 
 // put function definitions here:
