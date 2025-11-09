@@ -177,7 +177,7 @@ def main():
             buckets = [[] for _ in range(numESPs)]
 
             while packetCount < (NUM_OF_PACKETS * numESPs):
-                buffer = ultraSocket.recv(PACKET_SIZE) # read up to number of bytes
+                buffer += ultraSocket.recv(PACKET_SIZE) # read up to number of bytes
                 if buffer == b"ERROR":
                     print('Cancelling Ultra current round')
                     raise msgTimeOutError()
