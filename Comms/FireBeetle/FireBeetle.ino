@@ -4,8 +4,8 @@
 #include "Display.h"
 #include <Arduino.h>
 #include <WiFi.h>
-#define SEND_DURATION 2000
-#define DEVICE_ID 2
+#define SEND_DURATION 2000 
+#define DEVICE_ID 4
 //#include <ESPping.h>     // Install "ESPping" library
 
 //key[16] cotain 16 byte key(128 bit) for encryption
@@ -22,12 +22,12 @@ AES128 aes128;
 
 
 //WiFi setup
-const char* ssid = "Wenwuuu";
-const char* password = "11223344";
-//const char* ssid = "Hws";
-//const char* password = "22092003";
-const char* host = "10.82.212.64";
-const int port = 2105;
+//const char* ssid = "Wenwuuu";
+//const char* password = "11223344";
+const char* ssid = "Hws";
+const char* password = "22092003";
+const char* host = "10.247.90.64";
+const int port = 2105;  
 int packetCount = 0;
 int mode;
 int actualClass = 1;
@@ -140,25 +140,28 @@ void loop() {
 
   unsigned long now = millis();
 
-  while (client.available() == 0) {
-    now = millis();
-    // Display update at 10 Hz (independent of packet send)
-    if (now - lastDisplay >= 100) {
-      lastDisplay = now;
+  while(client.available()==0){
+      now = millis();
+      // Display update at 10 Hz (independent of packet send)
+      #if (DEVICE_ID == 2) || (DEVICE_ID == 3)
+        if (now - lastDisplay >= 100) {
+          lastDisplay = now;
+          actualClass = client.read();
 
-      if (DEVICE_ID == 2) {
-        display.loopDevice2();
-      } else if (DEVICE_ID == 3) {
-        display.loopDevice3("Hello!");
-      }
+          #if DEVICE_ID == 2
+            display.loopDevice2(now);
+          #elif DEVICE_ID == 3
+            display.loopDevice3(now, "Hello!");
+          #endif
 
-      static int lastClass = -1;
-      if ((DEVICE_ID == 2 || DEVICE_ID == 3) && actualClass != lastClass) {
-        display.showActionClass(actualClass, mode);
-        lastClass = actualClass;
-      }
-    }
-    delay(10); //wait for server to reply
+          static int lastClass = -1;
+          if (actualClass != lastClass) {
+            display.showActionClass(actualClass, mode);
+            lastClass = actualClass;
+          }
+        }
+      #endif
+       delay(10); //wait for server to reply
   }
 
 

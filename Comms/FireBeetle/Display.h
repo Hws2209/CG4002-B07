@@ -63,22 +63,17 @@ class Display {
         classIndex = 0; // default to Idle if out of range
       }
 
-      // Update battery only if Player 1
-      if (playerLabel == "Player 1") {
-        updateBattery();
-      }
-
       oled.clearDisplay();
 
-      // --- Top row: player + battery ---
+      // Top row: player + battery
       oled.setTextSize(1);
-      oled.setTextColor(SSD1306_WHITE);
       oled.setCursor(0, 0);
       oled.print(playerLabel);
 
       if (playerLabel == "Player 1") {
-        oled.setCursor(90, 0);
-        oled.printf("%.0f%%", batteryPercent);
+          updateBattery();
+          oled.setCursor(90, 0);
+          oled.printf("%.0f%%", batteryPercent);
       }
 
       // --- Middle: action text ---
@@ -86,8 +81,11 @@ class Display {
       oled.setCursor(0, 20);
       oled.println("Action:");
 
-      oled.setTextSize(2);
+      oled.setTextSize(1);
       oled.setCursor(0, 36);
+      oled.println(labels[classIndex]);
+
+      oled.display(); 
     }
 
 
@@ -132,8 +130,7 @@ class Display {
       oled.display();
     }
 
-    void loopDevice2() {
-      unsigned long now = millis();
+    void loopDevice2(unsigned long now) {
       if (now - lastUpdate >= 1000) {
         lastUpdate = now;
         updateBattery();
@@ -154,8 +151,7 @@ class Display {
       oled.display();
     }
 
-    void loopDevice3(const String &msg = "") {
-      unsigned long now = millis();
+    void loopDevice3(unsigned long now, const String &msg = "") {
       if (now - lastUpdate >= 1000) {
         lastUpdate = now;
         oled.clearDisplay();

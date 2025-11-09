@@ -19,6 +19,8 @@ Instructions for Running the Project
      - AI/Ultra96/run_model.py
      - AI/Ultra96/design_1.bit
      - AI/Ultra96/design_1.hwh
+     - AI/Ultra96/design_2.bit
+     - AI/Ultra96/design_2.hwh
 
 3. On the FireBeetle Boards:
    - Upload: Comms/FireBeetle/FireBeetle.ino
@@ -27,4 +29,5 @@ Instructions for Running the Project
            #define DEVICE_ID 1
        should be modified for each FireBeetle to give it a unique ID.
    - Requirements:
-     - Hardware/wireless testing/wireless/MPU.h
+     - Comms/FireBeetle/MPU.h
+     - Comms/FireBeetle/Display.h

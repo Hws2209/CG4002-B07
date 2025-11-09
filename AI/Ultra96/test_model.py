@@ -78,16 +78,16 @@ def extract_features(input):
 
 def get_model_output(inputArray):
     global inputBuffer, outputBuffer, dma, DATA_LABELS
-    logger.info("Preparing input buffer...")
+    # logger.info("Preparing input buffer...")
     np.copyto(inputBuffer, inputArray)
 
     try:
-        logger.info("Starting DMA send transfer...")
+        # logger.info("Starting DMA send transfer...")
         dma.sendchannel.transfer(inputBuffer)
         dma.recvchannel.transfer(outputBuffer)
         dma.sendchannel.wait()
         dma.recvchannel.wait()
-        logger.info("DMA receive completed.")
+        # logger.info("DMA receive completed.")
 
         return outputBuffer.copy()
     except RuntimeError as e:
@@ -109,7 +109,7 @@ def main():
 
     def classify_action(localBuckets):
         nonlocal sampleCount, numFailures, numLogitMismatches, totalComputeTime
-        logger.info("Received new input data")
+        # logger.info("Received new input data")
 
         # Form inputArray
         if MODEL_TYPE == "Simplified MLP":
@@ -127,8 +127,8 @@ def main():
         endTime = time.time()
         totalComputeTime += (endTime - startTime)
 
-        logger.info("Prediction logits: %s", predLogits)
-        logger.info("Predicted class: %d %s", predClass, DATA_LABELS[predClass])
+        # logger.info("Prediction logits: %s", predLogits)
+        # logger.info("Predicted class: %d %s", predClass, DATA_LABELS[predClass])
 
         goldenLogits = goldenLogitsMatrix[sampleCount]
         goldenClass = int(np.argmax(goldenLogits))

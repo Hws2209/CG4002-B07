@@ -1,8 +1,0 @@
-#ifndef CONV2_BIAS_H
-#define CONV2_BIAS_H
-
-static const float conv2_bias[] = {
--0.12750214338302612f, -0.4802328646183014f, -0.3895484209060669f, 1.1239031553268433f, 
-};
-
-#endif // CONV2_BIAS_H

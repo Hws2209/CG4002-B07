@@ -2,6 +2,7 @@
 Comms/venv/
 AI/CNN_HLS/_ide
 AI/CNN_HLS/hls_component
-AI/CNN_Vivado/ip_repo
+AI/CNN_HLS/Archive
 Comms/high_score_1.txt
 Comms/high_score_2.txt
+.vscode/settings.json
