@@ -66,8 +66,11 @@ def print_game_over(currentScore, highScore, highScoreFile):
     save_high_score(highScore, highScoreFile)
   print(f"{BLUE}High score:{RESET} {highScore}")
 
-def print_correct(currentScore):
-  print(f"{GREEN}Correct!{RESET} Current score: {currentScore}")
+def print_correct(currentScore, printScore=True):
+  if printScore:
+    print(f"{GREEN}Correct!{RESET} Current score: {currentScore}")
+  else: 
+    print(f"{GREEN}Correct!{RESET}")
   play_audio(f"./../Interface/audio/beep.wav")
 
 # Play audio file
@@ -293,6 +296,7 @@ def start_server():
   while True:
     try:
       if not prevRoundCorrect:
+        currentScore = 0
         if numPlayers == 1:
           displayMsg = "\nPress enter to start game. Enter T for tutorial if player 1: "
         else:
@@ -340,13 +344,11 @@ def start_server():
         player1Class = data[0]
         classReceived.wait()
         
-        print("Expected Action:", DATA_LABELS[expectedClass])
-        print("Action Detected:", DATA_LABELS[player1Class])
         debug_print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
         if player1Class == expectedClass:
           currentScore += 1
-          print_correct(currentScore)
+          print_correct(currentScore, not tutorialMode)
           prevRoundCorrect = True
           if tutorialMode:
             if tutorialExpectedClass == 11:
@@ -357,50 +359,58 @@ def start_server():
 
           
         else:
+          print("Expected Action:", DATA_LABELS[expectedClass])
+          print("Action Detected:", DATA_LABELS[player1Class])
           if tutorialMode:
             print("Action not performed correctly. Please try again")
             prevRoundCorrect = True
             continue
           print_game_over(currentScore, highScore, highScoreFile)
-          currentScore = 0
           prevRoundCorrect = False
 
-      else:
+      else: #2 player
         data = ultraSocket.recv(2)
         ultraDoneTime = time.time()
         player1Class, player2Class = data[0], data[1]
         classReceived.wait()
 
-        print("Expected Action:", DATA_LABELS[expectedClass])
-        print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
-        print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
         debug_print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
 
-        if mode == 2:
+        if mode == 2: #co-op mode
           if player1Class == expectedClass and player2Class == expectedClass:
             currentScore += 1
             print_correct(currentScore)
             prevRoundCorrect = True
+            #if tutorialMode:
+            #  if tutorialExpectedClass == 6:
+            #    prevRoundCorrect = False
+            #    print("Tutorial completed!")
+            #  elif tutorialExpectedClass <6:
+            #    tutorialExpectedClass +=1
 
           else:
+            print("Expected Action:", DATA_LABELS[expectedClass])
+            print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
+            print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
             print_game_over(currentScore, highScore, highScoreFile)
-            currentScore = 0
             prevRoundCorrect = False
 
-        else:
+        else: #vs mode
           if player1Class == expectedClass and player2Class == expectedClass:
             currentScore += 1
             print_correct(currentScore)
             prevRoundCorrect = True
           else: 
-            play_audio(f"./../Interface/audio/lose.wav")
+            print("Expected Action:", DATA_LABELS[expectedClass])
+            print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
+            print(f"Player 2 Action: {DATA_LABELS[player2Class]}")
+            play_nonblock_audio(f"./../Interface/audio/lose.wav", 0.5)
             if player1Class != expectedClass and player2Class == expectedClass:
               print(f"Player 1 made a mistake! Player 2 wins!")
             elif player1Class == expectedClass and player2Class != expectedClass:
               print("\nPlayer 2 made a mistake! Player 1 wins!")
             else:
               print("\nBoth players made a mistake! No winner this round.")
-            currentScore = 0
             prevRoundCorrect = False
 
     except threading.BrokenBarrierError:

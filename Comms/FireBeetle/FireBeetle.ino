@@ -24,11 +24,11 @@ AES128 aes128;
 //WiFi setup
 //const char* ssid = "Wenwuuu";
 //const char* password = "11223344";
-//const char* ssid = "Hws";
-//const char* password = "22092003";
-const char* ssid = "SINGTEL-T6WV";
-const char* password = "v52t7w3f4k";
-const char* host = "192.168.1.92";
+const char* ssid = "Hws";
+const char* password = "22092003";
+//const char* ssid = "SINGTEL-T6WV";
+//const char* password = "v52t7w3f4k";
+const char* host = "10.247.90.64";
 const int port = 2105;
 int packetCount = 0;
 int mode;
