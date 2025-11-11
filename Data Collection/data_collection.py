@@ -25,7 +25,6 @@ else:
 
 IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
-MODEL_PATH = "model.pt"
 
 
 #encryption data
@@ -48,12 +47,17 @@ msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
 
 collectedData = []
 classCounts = {}
+models = []
 
 # Try loading the model once if testing mode is enabled
 if IS_TESTING_MODE:
-    model = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
-    model.eval()
-    print(f"[MODEL] Loaded model from {MODEL_PATH}")
+    model1 = torch.load("old_model.pt", map_location="cpu", weights_only=False)
+    model1.eval()
+    models.append(model1)
+    model2 = torch.load("model.pt", map_location="cpu", weights_only=False)
+    model2.eval()
+    models.append(model2)
+    print(f"[MODEL] Loaded model")
 
 def extract_features(matrix):
     features = []
@@ -210,20 +214,22 @@ def start_server():
       startTime = time.time()
       inputArray = preprocess(buckets)
       inputTensor = torch.tensor(inputArray, dtype=torch.float32).unsqueeze(0)
-      with torch.no_grad():
-        output = model(inputTensor)
-      print("inference time: ", time.time() - startTime)
-      print("MODEL OUTPUT:", output)
 
-      maxLogitTensor, predClassTensor = torch.max(output, dim=1)
-      maxLogit = maxLogitTensor.item()
-      predClass = predClassTensor.item()
+      for model in models:
+        with torch.no_grad():
+          output = model(inputTensor)
+        print("inference time: ", time.time() - startTime)
+        print("MODEL OUTPUT:", output)
 
-      if maxLogit >= 5:
-        print(f"PREDICTED CLASS: {predClass} ({DATA_LABELS[predClass]})")
-      else:
-        predClass = -1
-        print(f"PREDICTED CLASS: {predClass}")
+        maxLogitTensor, predClassTensor = torch.max(output, dim=1)
+        maxLogit = maxLogitTensor.item()
+        predClass = predClassTensor.item()
+
+        if maxLogit >= 5:
+          print(f"PREDICTED CLASS: {predClass} ({DATA_LABELS[predClass]})")
+        else:
+          predClass = -1
+          print(f"PREDICTED CLASS: {predClass}")
 
       collectedData.clear()
       continue # skip to next round

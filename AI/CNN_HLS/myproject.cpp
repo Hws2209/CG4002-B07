@@ -13,10 +13,10 @@
 #define NUM_CHANNELS 6
 #define NUM_CLASSES 12
 
-#define CONV1_OUT 8
-#define CONV2_OUT 4
-#define KERNEL_SIZE 2
-#define POOL_SIZE 4
+#define CONV1_OUT 6
+#define CONV2_OUT 3
+#define KERNEL_SIZE 3
+#define POOL_SIZE 2
 #define FC1_NEURONS 64
 
 typedef int32_t input_t;

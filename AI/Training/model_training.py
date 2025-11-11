@@ -24,7 +24,7 @@ else:
     NUM_CLASSES = 7
 
 
-DATA = "Data6"
+DATA = "Data8"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 
