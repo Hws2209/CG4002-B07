@@ -135,14 +135,11 @@ def get_model_output(inputArray):
 
 
 def classify_action(inputArray):
-    startTime = time.time()
     predLogits = get_model_output(inputArray)
     predClass = int(np.argmax(predLogits))
-    endTime = time.time()
 
     # logger.info("Prediction logits: %s", predLogits)
     # logger.info("Predicted class: %d %s", predClass, DATA_LABELS[predClass])
-    logger.info("Time taken for dma + inference: %s", endTime - startTime)
 
     return predClass
 
@@ -202,16 +199,20 @@ def main():
             # logger.info("Received new set of input data. Preprocessing...")
             
             if numESPs == 2:
+                startTime = time.time()
                 inputArray = process_buckets(buckets)
                 predClass = classify_action(inputArray)
+                print("time taken for preprocessing and inference: ", time.time() - startTime)
                 ultraSocket.send(bytes([predClass]))
             else:
+                startTime = time.time()
                 player1 = buckets[:2]
                 player2 = buckets[2:]
                 inputArray1 = process_buckets(player1)
                 inputArray2 = process_buckets(player2)
                 predClass1 = classify_action(inputArray1)
                 predClass2 = classify_action(inputArray2)
+                print("time taken for preprocessing and inference: ", time.time() - startTime)
                 ultraSocket.send(bytes([predClass1, predClass2]))
         except msgTimeOutError: 
             continue

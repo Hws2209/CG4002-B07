@@ -102,24 +102,30 @@ def main():
     sampleCount = 0
     numFailures = 0
     numLogitMismatches = 0
+    totalPreprocessTime = 0.0
     totalComputeTime = 0.0
 
     interactiveInput = input("Interactive mode? Y/N: ")
     interactiveMode = interactiveInput.upper() == "Y"
 
     def classify_action(localBuckets):
-        nonlocal sampleCount, numFailures, numLogitMismatches, totalComputeTime
+        nonlocal sampleCount, numFailures, numLogitMismatches, totalPreprocessTime, totalComputeTime
         # logger.info("Received new input data")
 
         # Form inputArray
-        if MODEL_TYPE == "Simplified MLP":
-            inputArray = np.array([extract_features(np.array(bucket)) for bucket in localBuckets], dtype=np.float32).ravel()
-        elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
-            inputArray = np.concatenate(localBuckets, axis=0).ravel().astype(np.int32)
-        elif MODEL_TYPE == "CNN":
-            inputArray = np.concatenate(localBuckets, axis=0).T.ravel().astype(np.int32)
-        else:
-            raise ValueError("Invalid MODEL_TYPE")
+        # if MODEL_TYPE == "Simplified MLP":
+        #     inputArray = np.array([extract_features(np.array(bucket)) for bucket in localBuckets], dtype=np.float32).ravel()
+        # elif MODEL_TYPE == "MLP" or MODEL_TYPE == "RNN":
+        #     inputArray = np.concatenate(localBuckets, axis=0).ravel().astype(np.int32)
+        # elif MODEL_TYPE == "CNN":
+        #     inputArray = np.concatenate(localBuckets, axis=0).T.ravel().astype(np.int32)
+        # else:
+        #     raise ValueError("Invalid MODEL_TYPE")
+        
+        startTime = time.time()
+        inputArray = np.concatenate(localBuckets, axis=0).T.ravel().astype(np.int32)
+        endTime = time.time()
+        totalPreprocessTime += (endTime - startTime)
         
         startTime = time.time()
         predLogits = get_model_output(inputArray)
@@ -183,7 +189,8 @@ def main():
     print(f"Processed {sampleCount} samples")
     
     if sampleCount > 0:
-        print(f"Average time per prediction: {totalComputeTime/sampleCount:.6f} seconds")
+        print(f"Average preprocessing time per prediction: {totalPreprocessTime/sampleCount:.6f} seconds")
+        print(f"Average inference time per prediction: {totalComputeTime/sampleCount:.6f} seconds")
 
     if numFailures == 0:
         print("Class check passed! All predicted classes match the golden.")
