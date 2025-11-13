@@ -13,7 +13,7 @@ NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
 
-DEBUG = 0
+DEBUG = 1
 #colors for CLI text
 RESET  = "\033[0m"
 RED    = "\033[31m"
@@ -39,6 +39,7 @@ ultraLock = threading.Lock()
 gameStarted = False
 ultraSocket = None
 
+collectedData = []
 def flush_recv(socket):
   dataSumLen = 0
   socket.setblocking(False)
@@ -51,7 +52,7 @@ def flush_recv(socket):
   except BlockingIOError:
     pass  # no more data available
   socket.setblocking(True)
-  debug_print("num of packets flushed: ", dataSumLen/20)
+  # debug_print("num of packets flushed: ", dataSumLen/20)
 
 def debug_print(*args, **kwargs):
   if DEBUG:
@@ -98,7 +99,7 @@ def check_audio_files():
   simonFile = f"./../Interface/audio/simon_says.wav"
   if not os.path.exists(simonFile):
     fileError = True
-  for i in range(1,12):
+  for i in range(1,11):
     audioFile = f"./../Interface/audio/{i}.wav"
     if not os.path.exists(audioFile):
       fileError = True
@@ -163,11 +164,26 @@ def ESP_client(conn, addr):
               dataPacket = buffer[idx: idx + PACKET_SIZE]
               # keep leftover for next call (if streaming)
               buffer = buffer[idx + PACKET_SIZE:]
-              debug_print(dataPacket.hex())
+              #debug_print(dataPacket.hex())
               packetCount += 1
-              debug_print(packetCount)
+              #debug_print(packetCount)
+
+################################3
+            #  header, deviceID = struct.unpack("<H H", dataPacket[:4])
+            #  # print(header, deviceID)
+
+            #  if header != 0xAA55:
+            #      print("incorrect header! Resync needed")
+            #      packetCount += 1
+            #      continue
+            #  encryptedPayload = dataPacket[4:]
+            #  decryptedPayload = cipher.decrypt(encryptedPayload)
+            #  ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
+            #  # print(ax, ay, az, gx, gy, gz, padding)
+################################
               with ultraLock:
                 ultraSocket.sendall(dataPacket) #send to ultra96
+                collectedData.append([deviceID, ax, ay, az, gx, gy, gz])
         conn.settimeout(None)
 
         msgEndBarrier.wait()
@@ -230,7 +246,7 @@ def start_server():
 
   if mode == 1:
     DATA_LABELS = ["Idle", "Wave left hand", "Wave right hand", "Wave both hands", "Left back arm circle", "Right back arm circle", "Both back arms circles", 
-                   "Left front arm circle", "Right front arm circle", "Both front arms circles", "Buddha Clap", "Star jump"]
+                   "Left front arm circle", "Right front arm circle", "Both front arms circles", "Star jump"]
   else:
     DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
@@ -321,7 +337,7 @@ def start_server():
       
       #classReceived.clear()
       if mode == 1:
-        expectedClass = random.randint(1, 11)
+        expectedClass = random.randint(1, 10)
       else:
         expectedClass = random.randint(1, 6) 
       simonSays = 1 if random.random() < 0.8 else 0
@@ -341,16 +357,26 @@ def start_server():
       msgStartBarrier.wait()
       msgEndBarrier.wait(timeout=10)
       espDoneTime = time.time()
-      debug_print("Time taken from broadcast message to receiving all packets:", espDoneTime - startTime)
+      broadcastToSendFinPacketsToUltraTime = espDoneTime - startTime
+      debug_print("Time taken from broadcast message to receiving all packets:", broadcastToSendFinPacketsToUltraTime)
 
       data = ultraSocket.recv(numPlayers)
       ultraDoneTime = time.time()
       player1Class = data[0]
       player2Class = player1Class if numPlayers == 1 else data[1]
       classReceived.wait()
+      ESPDonetoUltra96Result = ultraDoneTime - espDoneTime
       
-      debug_print(f"Time taken from ESP done to Ultra96 result:", ultraDoneTime - espDoneTime)
+      debug_print(f"Time taken from ESP done to Ultra96 result:", ESPDonetoUltra96Result )
+      #######################
+      dataFilename = "time.txt"
+      with open(dataFilename, "a") as f:
+        f.write(f"StartToESPDone = {broadcastToSendFinPacketsToUltraTime}\n")
+        f.write(f"ESPDonetoUltraResult = {ESPDonetoUltra96Result}\n")
+        f.write("\n") # blank line between rounds
 
+      #collectedData.clear() # clear buffer for next round
+###########################
       if player1Class == expectedClass and player2Class == expectedClass:
         currentScore += 1
         print_correct(currentScore, not tutorialMode)

@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #define SEND_DURATION 2000
-#define DEVICE_ID 2
+#define DEVICE_ID 4
 //#include <ESPping.h>     // Install "ESPping" library
 
 //key[16] cotain 16 byte key(128 bit) for encryption
@@ -28,7 +28,7 @@ const char* ssid = "Hws";
 const char* password = "22092003";
 //const char* ssid = "SINGTEL-T6WV";
 //const char* password = "v52t7w3f4k";
-const char* host = "10.247.90.64";
+const char* host = "10.224.54.64";
 const int port = 2105;
 int packetCount = 0;
 int mode;
