@@ -74,7 +74,7 @@ def setup_ai():
         ol = Overlay('design_1.bit') # Loads the FPGA bitstream
         logger.info("Overlay loaded (design_1.bit): %s", ol)
         DATA_LABELS = ["Idle", "Wave left hand", "Wave right hand", "Wave both hands", "Left back arm circle", "Right back arm circle", "Both back arms circles", 
-                       "Left front arm circle", "Right front arm circle", "Both front arms circles", "Buddha Clap", "Star jump"]
+                       "Left front arm circle", "Right front arm circle", "Both front arms circles", "Star jump"]
     else:
         ol = Overlay('design_2.bit')
         logger.info("Overlay loaded (design_2.bit): %s", ol)
@@ -195,25 +195,29 @@ def main():
                 
 
             # Received all packets of data
-            print("time taken to receive all data: ", time.time() - startTime)
+            # print("time taken to receive all data: ", time.time() - startTime)
             # logger.info("Received new set of input data. Preprocessing...")
             
             if numESPs == 2:
                 startTime = time.time()
                 inputArray = process_buckets(buckets)
                 predClass = classify_action(inputArray)
-                print("time taken for preprocessing and inference: ", time.time() - startTime)
+                timeTaken = time.time() - startTime
+                print("time taken for preprocessing and inference: ", timeTaken)
                 ultraSocket.send(bytes([predClass]))
             else:
                 startTime = time.time()
-                player1 = buckets[:2]
-                player2 = buckets[2:]
-                inputArray1 = process_buckets(player1)
-                inputArray2 = process_buckets(player2)
+                inputArray1 = process_buckets(buckets[:2])
+                inputArray2 = process_buckets(buckets[2:])
                 predClass1 = classify_action(inputArray1)
                 predClass2 = classify_action(inputArray2)
-                print("time taken for preprocessing and inference: ", time.time() - startTime)
+                timeTaken = time.time() - startTime
+                print("time taken for preprocessing and inference: ", timeTaken)
                 ultraSocket.send(bytes([predClass1, predClass2]))
+            
+            with open("time.txt", "a") as f:
+                f.write(f"{timeTaken}\n")
+
         except msgTimeOutError: 
             continue
 
