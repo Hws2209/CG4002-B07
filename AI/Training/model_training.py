@@ -18,13 +18,13 @@ WINDOW_SIZE = 20
 MODE = 1
 if MODE == 1:
     NUM_SENSORS = 2
-    NUM_CLASSES = 12
+    NUM_CLASSES = 11
 else:
     NUM_SENSORS = 4
     NUM_CLASSES = 7
 
 
-DATA = "Data8"
+DATA = "Data9"
 DATA_FOLDER_NAME = f"Dataset/{DATA}"
 EXPORT_FOLDER_NAME = f"Export ({DATA})"
 

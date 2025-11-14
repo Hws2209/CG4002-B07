@@ -148,22 +148,7 @@ void loop() {
 #if (DEVICE_ID == 2) || (DEVICE_ID == 3)
     if (now - lastDisplay >= 100) {
       lastDisplay = now;
-
-//#if DEVICE_ID == 2
-//      display.loopDevice2(now);
-//#elif DEVICE_ID == 3
-//      display.loopDevice3(now, "Hello!");
-//#endif
-
-//      if (actualClass != lastClass) {
-//        Serial.print("refresh update mode: ");
-//        Serial.print(mode);
-//        Serial.print("    class:      ");
-//        Serial.println(actualClass);
-//        display.showActionClass(actualClass, mode);
-//        lastClass = actualClass;
-//      }
-        display.showActionClass(actualClass, mode);
+      display.showActionClass(actualClass, mode);
     }
 #endif
     delay(10); //wait for server to reply

@@ -38,7 +38,7 @@ ultraLock = threading.Lock()
 gameStarted = False
 ultraSocket = None
 
-collectedData = []
+# collectedData = []
 def flush_recv(socket):
   dataSumLen = 0
   socket.setblocking(False)
@@ -357,14 +357,14 @@ def start_server():
           if tutorialExpectedClass == len(DATA_LABELS)-1:
             prevRoundCorrect = False
             print("Tutorial completed!")
-          elif tutorialExpectedClass <len(DATA_LABELS)-1:
-            tutorialExpectedClass +=1
+          elif tutorialExpectedClass < len(DATA_LABELS)-1:
+            tutorialExpectedClass += 1
       else: #wrong action occurred
         loser = 0
         if numPlayers == 1:
           print("Expected Action:", DATA_LABELS[expectedClass])
           print("Action Detected:", DATA_LABELS[player1Class])
-        else: #numPlayers ==2
+        else: #numPlayers == 2
           print("Expected Action:", DATA_LABELS[expectedClass])
           print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
           print(f"Player 2 Action: {DATA_LABELS[player2Class]}")

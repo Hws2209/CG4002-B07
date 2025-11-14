@@ -11,13 +11,13 @@
 
 #define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
 #define NUM_CHANNELS 6
-#define NUM_CLASSES 12
+#define NUM_CLASSES 11
 
-#define CONV1_OUT 6
-#define CONV2_OUT 3
+#define CONV1_OUT 8
+#define CONV2_OUT 4
 #define KERNEL_SIZE 3
-#define POOL_SIZE 2
-#define FC1_NEURONS 64
+#define POOL_SIZE 4
+#define FC1_NEURONS 128
 
 typedef int32_t input_t;
 typedef float float_t;

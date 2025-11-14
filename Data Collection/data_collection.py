@@ -19,14 +19,22 @@ NUM_CLIENTS = 2 # num of esp
 MODE = 1
 if MODE == 1:
   DATA_LABELS = ["Idle", "Wave left hand", "Wave right hand", "Wave both hands", "Left back arm circle", "Right back arm circle", "Both back arms circles", 
-                 "Left front arm circle", "Right front arm circle", "Both front arms circles", "Buddha Clap", "Star jump"]
+                 "Left front arm circle", "Right front arm circle", "Both front arms circles", "Star jump"]
 else:
   DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 
 IS_TESTING_MODE = True
 MODEL_TYPE = "CNN"
 
-
+DEBUG = 1
+#colors for CLI text
+RESET  = "\033[0m"
+RED    = "\033[31m"
+GREEN  = "\033[32m"
+YELLOW = "\033[33m"
+BLUE   = "\033[34m"
+CYAN   = "\033[36m"
+MAGENTA = "\033[95m"
 #encryption data
 key = bytes([
     0x00, 0x01, 0x02, 0x03,
@@ -44,10 +52,30 @@ startSignalSent = False
 startRecevingFromESP = False
 startBarrier = threading.Barrier(NUM_CLIENTS)
 msgEndBarrier = threading.Barrier(NUM_CLIENTS+1)
+msgStartBarrier = threading.Barrier(NUM_CLIENTS+1)
+
 
 collectedData = []
 classCounts = {}
 models = []
+
+def flush_recv(socket):
+  dataSumLen = 0
+  socket.setblocking(False)
+  try:
+    while True:
+        data = socket.recv(1024)
+        dataSumLen += len(data)
+        if not data:
+            break
+  except BlockingIOError:
+    pass  # no more data available
+  socket.setblocking(True)
+  debug_print("num of packets flushed: ", dataSumLen/20)
+
+def debug_print(*args, **kwargs):
+  if DEBUG:
+        print(f"{CYAN}[DEBUG]{RESET}", *args, **kwargs)
 
 # Try loading the model once if testing mode is enabled
 if IS_TESTING_MODE:
@@ -111,11 +139,14 @@ def ESP_client(conn, addr):
   print(f"[NEW CONNECTION] {addr} connected.")
 
   #handshake
-  message = conn.recv(18) #read upto number of bytes
+  message = conn.recv(5) #read upto number of bytes
   if message == b"HELLO":
     print(f"received HELLO from firebeetle {addr} ")
     msg = "ACK"
     conn.send(msg.encode())
+    mode = 1
+    conn.send(mode.to_bytes(1,byteorder='little'))
+
     data = conn.recv(1)  
     deviceID = data[0]
     print("DeviceID:", deviceID)
@@ -128,10 +159,12 @@ def ESP_client(conn, addr):
   # Main receive loop
   while True:
     try:
-      if not startRecevingFromESP:
-         continue
       
       #START RECEIVING DATAAA
+      msgStartBarrier.wait()
+      flush_recv(conn)
+      msg = 'a'
+      conn.sendall(msg.encode())
       packetCount = 0
       buffer = b''
       while packetCount < NUM_OF_PACKETS:
@@ -145,9 +178,9 @@ def ESP_client(conn, addr):
         ax, ay, az, gx, gy, gz, padding = struct.unpack("<hhh hhh I", decryptedPayload)
 
         packetCount += 1
-        # print(f"ESP {deviceID}: packet {packetCount}")
-        # print(deviceID, ax, ay, az, gx, gy, gz)
         with ultraLock:
+          print(f"ESP {deviceID}: packet {packetCount}")
+          print(deviceID, ax, ay, az, gx, gy, gz)
           collectedData.append([deviceID, ax, ay, az, gx, gy, gz])
 
       msgEndBarrier.wait()
@@ -167,7 +200,7 @@ def ESP_client(conn, addr):
 
 def start_server():
   global startRecevingFromESP
-    
+  global msgStartBarrier
 
   #firebeetle connection
   serverPort = 2105
@@ -193,11 +226,12 @@ def start_server():
   while True:
     input("press enter to receive msg")
     winsound.Beep(1000, 200)
+    msgStartBarrier.wait()
+
 
     startTime = time.time()
     startRecevingFromESP = True
     # print(f"[BROADCAST] {msg}")
-    broadcast(msg)
     msgEndBarrier.wait()
     startRecevingFromESP = False
     
@@ -239,7 +273,7 @@ def start_server():
     if classInput.isdigit():  # valid integer
       classLabel = int(classInput)
 
-      if MODE == 1 and NUM_CLIENTS == 4:
+      if NUM_CLIENTS == 4:
         # Separate data based on device ID
         matrix_12 = [row for row in collectedData if row[0] in (1, 2)]
         matrix_34 = [row for row in collectedData if row[0] in (3, 4)]

@@ -5,5 +5,7 @@ AI/CNN_HLS/hls_component
 AI/CNN_HLS/Archive
 .vscode/settings.json
 Comms/high_score*.txt
+Comms/data.txt
+Comms/.data.txt.kate-swp
 Comms/1_player_time.txt
 Comms/2_player_time.txt

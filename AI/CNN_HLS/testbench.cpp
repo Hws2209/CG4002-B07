@@ -13,7 +13,7 @@
 #define NUM_SENSORS 2
 #define SEQ_LEN 40 // WINDOW_SIZE * NUM_SENSORS
 #define NUM_CHANNELS 6
-#define NUM_CLASSES 12
+#define NUM_CLASSES 11
 
 #define MODE 1
 
