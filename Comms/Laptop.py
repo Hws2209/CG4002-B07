@@ -31,6 +31,11 @@ key = bytes([
 ])
 cipher = AES.new(key, AES.MODE_ECB)
 
+CHARKEY = 0x5A
+def xor_encrypt(byte_val, key=CHARKEY):
+    return bytes([byte_val ^ key])
+def xor_decrypt_int(encrypted_int, key=CHARKEY):
+    return encrypted_int ^ key
 #threading data
 connectedClients = []   # store client connections
 clientLock = threading.Lock()
@@ -132,9 +137,9 @@ def ESP_client(conn, addr):
   if message == b"HELLO":
     msg = "ACK"
     conn.send(msg.encode())
-    conn.send(mode.to_bytes(1,byteorder='little'))
+    conn.send(xor_encrypt(mode))
     data = conn.recv(1)  
-    deviceID = data[0]
+    deviceID = xor_decrypt_int(data[0])
     print("ESP", deviceID, "Connected")
 
     if not gameStarted:
@@ -174,9 +179,9 @@ def ESP_client(conn, addr):
         classReceived.wait()
 
         if deviceID==2:
-          conn.send(player1Class.to_bytes(1,"little"))
+          conn.send(xor_encrypt(player1Class))
         if deviceID==3:
-          conn.send(player2Class.to_bytes(1,"little"))
+          conn.send(xor_encrypt(player2Class))
 
       except threading.BrokenBarrierError:
         #need to flush data?
@@ -272,7 +277,8 @@ def start_server():
     debug_print('Received HELLO from ultra')
     msg = "ACK"
     ultraSocket.send(msg.encode())
-    ultraSocket.send(bytes([numESPs, mode]))
+    ultraSocket.send(xor_encrypt(numESPs)+xor_encrypt(mode))
+    #ultraSocket.send(bytes([numESPs, mode]))
 
     debug_print("Waiting for Ultra96 to load bitstream")
     readyMsg = ultraSocket.recv(5)
@@ -341,8 +347,8 @@ def start_server():
 
       data = ultraSocket.recv(numPlayers)
       ultraDoneTime = time.time()
-      player1Class = data[0]
-      player2Class = player1Class if numPlayers == 1 else data[1]
+      player1Class = xor_decrypt_int(data[0])
+      player2Class = player1Class if numPlayers == 1 else xor_decrypt_int(data[1])
       classReceived.wait()
       ESPDonetoUltra96Result = ultraDoneTime - espDoneTime
       

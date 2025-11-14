@@ -19,8 +19,11 @@ byte decryptedtext[16];
 //creating an object of AES128 class
 AES128 aes128;
 
+uint8_t CHARKEY = 0x5A;
 
-
+uint8_t xor_crypt(uint8_t encrypted_byte, uint8_t key) {
+  return encrypted_byte ^ key;
+}
 //WiFi setup
 //const char* ssid = "Wenwuuu";
 //const char* password = "11223344";
@@ -87,7 +90,6 @@ void setup() {
   }
   Serial.print("timeout setting:  ");
   Serial.println(client.getTimeout());
-  //  String ack = client.readStringUntil('\n');
   String ack = client.readStringUntil('K');
   if (ack != "AC") {
     Serial.println("NOT Acknowledged");
@@ -98,11 +100,12 @@ void setup() {
     delay(10); //wait for server to reply
   }
   mode = client.read();
+  mode = xor_crypt(mode, CHARKEY);
   Serial.print("Mode:   ");
   Serial.println(mode);
 
 
-  client.write(DEVICE_ID);
+  client.write(xor_crypt(DEVICE_ID,CHARKEY));
 
   packet.header = 0xAA55;
   packet.device_id = DEVICE_ID;
@@ -133,7 +136,6 @@ void loop() {
   }
 
 
-  //  String reply = client.readStringUntil('\n');
   char reply = client.read();
   Serial.print("Reply from server: ");
   Serial.println(reply);
@@ -166,6 +168,7 @@ void loop() {
         delay(10); //wait for server to reply
       }
       actualClass = client.read();
+      actualClass = xor_crypt(actualClass, CHARKEY);
       Serial.print("Actual Class: ");
       Serial.println(actualClass);
     }

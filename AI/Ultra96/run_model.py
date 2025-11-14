@@ -22,6 +22,12 @@ class msgTimeOutError (Exception):
     pass
 
 
+CHARKEY = 0x5A
+def xor_encrypt(byte_val, key=CHARKEY):
+    return bytes([byte_val ^ key])
+def xor_decrypt_int(encrypted_int, key=CHARKEY):
+    return encrypted_int ^ key
+
 def setup_comms():
     global PACKET_SIZE, NUM_OF_PACKETS, HEADER
     global cipher, ultraSocket, numESPs, mode
@@ -55,8 +61,8 @@ def setup_comms():
         sys.exit(1)
 
     data = ultraSocket.recv(2)
-    numESPs = data[0]
-    mode = data[1]
+    numESPs = xor_decrypt_int(data[0])
+    mode = xor_decrypt_int(data[1])
     print("Number of ESPs:", numESPs)
     print("Game mode:", mode)
 
@@ -204,7 +210,8 @@ def main():
                 predClass = classify_action(inputArray)
                 # timeTaken = time.time() - startTime
                 # print("time taken for preprocessing and inference: ", timeTaken)
-                ultraSocket.send(bytes([predClass]))
+                #ultraSocket.send(bytes([predClass]))
+                ultraSocket.send(xor_encrypt([predClass]))
             else:
                 # startTime = time.time()
                 inputArray1 = process_buckets(buckets[:2])
@@ -213,7 +220,8 @@ def main():
                 predClass2 = classify_action(inputArray2)
                 # timeTaken = time.time() - startTime
                 # print("time taken for preprocessing and inference: ", timeTaken)
-                ultraSocket.send(bytes([predClass1, predClass2]))
+                ultraSocket.send(xor_encrypt(predClass1)+ xor_encrypt(predClass2))
+                #ultraSocket.send(bytes([predClass1, predClass2]))
             
             # with open("time.txt", "a") as f:
             #     f.write(f"{timeTaken}\n")
