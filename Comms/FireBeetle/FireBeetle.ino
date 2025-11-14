@@ -26,8 +26,6 @@ AES128 aes128;
 //const char* password = "11223344";
 const char* ssid = "Hws";
 const char* password = "22092003";
-//const char* ssid = "SINGTEL-T6WV";
-//const char* password = "v52t7w3f4k";
 const char* host = "10.224.54.64";
 const int port = 2105;
 int packetCount = 0;
@@ -42,7 +40,6 @@ SensorPacket packet;
 MPU mpu;
 Display display;
 
-// put function declarations here:
 
 void setup() {
   pinMode(D9, OUTPUT);
@@ -64,12 +61,6 @@ void setup() {
   Serial.println("WiFi Connected");
   digitalWrite(D9, LOW);
 
-  //temporarily using mac address to differentiate firebeetles. may not be reliable.
-  //on second thought, hardcode is way btr, easier to ensure consistency
-  //  uint8_t mac[6];
-  //  WiFi.macAddress(mac);
-  //  packet.device_id = (mac[5] % 4)+1;
-  //  Serial.print("Device ID: "); Serial.println(packet.device_id);
   Serial.print("Arduino IP: ");
   Serial.println(WiFi.localIP());
 
@@ -78,12 +69,6 @@ void setup() {
   Serial.println(host);
   Serial.print("Port to connect:   ");
   Serial.println(port);
-
-  //  if (Ping.ping(host)) {
-  //    Serial.println("Ping successful! Host reachable.");
-  //  } else {
-  //    Serial.println("Ping failed! Check network/firewall.");
-  //  }
 
   //Connect to laptop
   if (!client.connect(host, port)) {
@@ -119,14 +104,7 @@ void setup() {
 
   client.write(DEVICE_ID);
 
-  //test only, hardcode sensor value
   packet.header = 0xAA55;
-  //packet.ax = 0xAB01;
-  //packet.ay = 0xCD10;
-  //packet.az = 0xEF11;
-  //packet.gx = 0xAB02;
-  //packet.gy = 0xCD20;
-  //packet.gz = 0xEF22;
   packet.device_id = DEVICE_ID;
   packet.padding = 0;
   aes128.setKey(key, 16); // Setting Key for AES

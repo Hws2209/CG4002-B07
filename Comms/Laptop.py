@@ -38,7 +38,6 @@ ultraLock = threading.Lock()
 gameStarted = False
 ultraSocket = None
 
-# collectedData = []
 def flush_recv(socket):
   dataSumLen = 0
   socket.setblocking(False)
