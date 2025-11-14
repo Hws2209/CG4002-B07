@@ -19,7 +19,7 @@ NUM_CLIENTS = 2 # num of esp
 MODE = 1
 if MODE == 1:
   DATA_LABELS = ["Idle", "Wave left hand", "Wave right hand", "Wave both hands", "Left back arm circle", "Right back arm circle", "Both back arms circles", 
-                 "Left front arm circle", "Right front arm circle", "Both front arms circles", "Buddha Clap", "Star jump"]
+                 "Left front arm circle", "Right front arm circle", "Both front arms circles", "Star jump"]
 else:
   DATA_LABELS = ["Idle", "Shake left hand", "Shake right hand", "Shake both hands", "Left high-five", "Right high-five", "Both high-five"]
 

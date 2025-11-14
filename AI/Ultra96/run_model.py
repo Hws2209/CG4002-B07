@@ -154,7 +154,7 @@ def main():
             receivedMsg = ultraSocket.recv(1)
             if receivedMsg != b"a":
                 continue
-            startTime = time.time()
+            # startTime = time.time()
             packetCount = 0
             buffer = b''
             buckets = [[] for _ in range(numESPs)]
@@ -199,24 +199,24 @@ def main():
             # logger.info("Received new set of input data. Preprocessing...")
             
             if numESPs == 2:
-                startTime = time.time()
+                # startTime = time.time()
                 inputArray = process_buckets(buckets)
                 predClass = classify_action(inputArray)
-                timeTaken = time.time() - startTime
-                print("time taken for preprocessing and inference: ", timeTaken)
+                # timeTaken = time.time() - startTime
+                # print("time taken for preprocessing and inference: ", timeTaken)
                 ultraSocket.send(bytes([predClass]))
             else:
-                startTime = time.time()
+                # startTime = time.time()
                 inputArray1 = process_buckets(buckets[:2])
                 inputArray2 = process_buckets(buckets[2:])
                 predClass1 = classify_action(inputArray1)
                 predClass2 = classify_action(inputArray2)
-                timeTaken = time.time() - startTime
-                print("time taken for preprocessing and inference: ", timeTaken)
+                # timeTaken = time.time() - startTime
+                # print("time taken for preprocessing and inference: ", timeTaken)
                 ultraSocket.send(bytes([predClass1, predClass2]))
             
-            with open("time.txt", "a") as f:
-                f.write(f"{timeTaken}\n")
+            # with open("time.txt", "a") as f:
+            #     f.write(f"{timeTaken}\n")
 
         except msgTimeOutError: 
             continue

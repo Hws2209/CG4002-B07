@@ -13,7 +13,7 @@ NUM_OF_PACKETS = 20 #expected num of packets per action
 HEADER = b'\x55\xAA'   # little-endian of 0xAA55
 
 
-DEBUG = 1
+DEBUG = 0
 #colors for CLI text
 RESET  = "\033[0m"
 RED    = "\033[31m"
@@ -39,7 +39,7 @@ ultraLock = threading.Lock()
 gameStarted = False
 ultraSocket = None
 
-collectedData = []
+# collectedData = []
 def flush_recv(socket):
   dataSumLen = 0
   socket.setblocking(False)
@@ -52,7 +52,7 @@ def flush_recv(socket):
   except BlockingIOError:
     pass  # no more data available
   socket.setblocking(True)
-  # debug_print("num of packets flushed: ", dataSumLen/20)
+  debug_print("num of packets flushed: ", dataSumLen/20)
 
 def debug_print(*args, **kwargs):
   if DEBUG:
@@ -183,7 +183,7 @@ def ESP_client(conn, addr):
 ################################
               with ultraLock:
                 ultraSocket.sendall(dataPacket) #send to ultra96
-                collectedData.append([deviceID, ax, ay, az, gx, gy, gz])
+                # collectedData.append([deviceID, ax, ay, az, gx, gy, gz])
         conn.settimeout(None)
 
         msgEndBarrier.wait()
@@ -369,13 +369,13 @@ def start_server():
       
       debug_print(f"Time taken from ESP done to Ultra96 result:", ESPDonetoUltra96Result )
       #######################
-      dataFilename = "time.txt"
-      with open(dataFilename, "a") as f:
-        f.write(f"StartToESPDone = {broadcastToSendFinPacketsToUltraTime}\n")
-        f.write(f"ESPDonetoUltraResult = {ESPDonetoUltra96Result}\n")
-        f.write("\n") # blank line between rounds
+      # dataFilename = "time.txt"
+      # with open(dataFilename, "a") as f:
+      #   f.write(f"StartToESPDone = {broadcastToSendFinPacketsToUltraTime}\n")
+      #   f.write(f"ESPDonetoUltraResult = {ESPDonetoUltra96Result}\n")
+      #   f.write("\n") # blank line between rounds
 
-      #collectedData.clear() # clear buffer for next round
+      # collectedData.clear() # clear buffer for next round
 ###########################
       if player1Class == expectedClass and player2Class == expectedClass:
         currentScore += 1
@@ -385,14 +385,14 @@ def start_server():
           if tutorialExpectedClass == len(DATA_LABELS)-1:
             prevRoundCorrect = False
             print("Tutorial completed!")
-          elif tutorialExpectedClass <len(DATA_LABELS)-1:
-            tutorialExpectedClass +=1
+          elif tutorialExpectedClass < len(DATA_LABELS)-1:
+            tutorialExpectedClass += 1
       else: #wrong action occurred
         loser = 0
         if numPlayers == 1:
           print("Expected Action:", DATA_LABELS[expectedClass])
           print("Action Detected:", DATA_LABELS[player1Class])
-        else: #numPlayers ==2
+        else: #numPlayers == 2
           print("Expected Action:", DATA_LABELS[expectedClass])
           print(f"Player 1 Action: {DATA_LABELS[player1Class]}")
           print(f"Player 2 Action: {DATA_LABELS[player2Class]}")

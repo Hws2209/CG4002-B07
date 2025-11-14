@@ -40,7 +40,7 @@ class Display {
         "Idle", "Wave left hand", "Wave right hand", "Wave both hands",
         "Left back arm circle", "Right back arm circle", "Both back arm circles",
         "Left front arm circle", "Right front arm circle", "Both front arm circles",
-        "Clap", "Star jump"
+        "Star jump"
       };
       
       static const char* mode2Labels[] = {
