@@ -184,7 +184,6 @@ def ESP_client(conn, addr):
           conn.send(xor_encrypt(player2Class))
 
       except threading.BrokenBarrierError:
-        #need to flush data?
         continue
       except ConnectionResetError:
         break
