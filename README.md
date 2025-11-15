@@ -40,6 +40,8 @@
 # Instructions for Running the Project
 
 ## 1. Laptop Setup
+OS: Ubuntu (Linux) 
+
 **Run:**  
 ```
 python3 Comms/Laptop.py
@@ -53,6 +55,8 @@ python3 Comms/Laptop.py
   Update this argument to point to the folder containing:
   - `Interface/cli.py`
   - `Interface/audio/`
+  
+  Alternatively, just run Laptop.py while in CG4002/Comms directory.
 
 ### Requirements
 - `Interface/cli.py`
@@ -76,7 +80,7 @@ This script is stored under `AI/Ultra96/run_model.sh` in the GitHub repository. 
 
 
 ## 3. ESP32 FireBeetle Boards Setup
-**Upload:**  
+**Upload to FireBeetle:**  
 ```
 Comms/FireBeetle/FireBeetle.ino
 ```
@@ -87,6 +91,19 @@ Modify this line to give each board a unique ID:
 #define DEVICE_ID 1
 ```
 
+Device ID
+- Player 1 Left  Hand : 1
+- Player 1 Right Hand : 2
+- Player 2 Left  Hand : 3
+- Player 2 Right Hand : 4
+
 ### Requirements
 - `Comms/FireBeetle/MPU.h`
 - `Comms/FireBeetle/Display.h`
+
+
+## 4. Start Up Sequence
+1. Run Laptop.py 
+2. Enter game mode in Laptop.py
+3. Run ./run_model.sh on the Ultra96
+4. Start all the FireBeetles 
